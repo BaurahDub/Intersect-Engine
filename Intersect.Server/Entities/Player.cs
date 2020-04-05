@@ -1093,8 +1093,6 @@ namespace Intersect.Server.Entities
                     base.TryAttack(target, 1, DamageType.Physical, Stats.Attack, 100, 10, 1.5);
                 }
             }
-
-            PacketSender.SendEntityAttack(this, CalculateAttackTime());
         }
 
         public override bool CanAttack(Entity entity, SpellBase spell)
