@@ -228,6 +228,12 @@ namespace Intersect.Client.Entities
                     this.Equipment = ((PlayerEntityPacket) packet).Equipment.ItemIds;
                 }
             }
+
+            if (pkt.CustomSpriteLayers != null)
+            {
+                this.CustomSpriteLayers = pkt.CustomSpriteLayers.CustomSpriteLayers;
+            }
+
         }
 
         public override EntityTypes GetEntityType()
