@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Media;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
@@ -15,6 +16,7 @@ using Intersect.GameObjects;
 using Intersect.Utilities;
 
 using Microsoft.Xna.Framework.Graphics;
+using System.IO;
 
 namespace Intersect.Editor.Forms.Editors
 {
@@ -48,6 +50,8 @@ namespace Intersect.Editor.Forms.Editors
         private int mUpperFrame;
 
         private SwapChainRenderTarget mUpperWindow;
+
+        private SoundPlayer mSoundPlayer;
 
         public FrmAnimation()
         {
@@ -134,6 +138,8 @@ namespace Intersect.Editor.Forms.Editors
 
             mLowerDarkness = Core.Graphics.CreateRenderTexture(picLowerAnimation.Width, picLowerAnimation.Height);
             mUpperDarkness = Core.Graphics.CreateRenderTexture(picUpperAnimation.Width, picUpperAnimation.Height);
+
+            mSoundPlayer = new SoundPlayer();
 
             InitLocalization();
             UpdateEditor();
@@ -272,6 +278,14 @@ namespace Intersect.Editor.Forms.Editors
         private void cmbSound_SelectedIndexChanged(object sender, EventArgs e)
         {
             mEditorItem.Sound = TextUtils.SanitizeNone(cmbSound?.Text);
+            if (mEditorItem.Sound != null)
+            {
+                var filePath = Path.Combine("resources", "sounds", mEditorItem.Sound);
+                if (File.Exists(filePath))
+                {
+                    mSoundPlayer.SoundLocation = filePath;
+                }
+            }
         }
 
         private void chkCompleteSoundPlayback_CheckedChanged(object sender, EventArgs e)
@@ -769,6 +783,31 @@ namespace Intersect.Editor.Forms.Editors
         {
             DrawLowerFrame();
             DrawUpperFrame();
+
+            // Determine how we are going to play our sound.
+            // Add the commented out sections back in if you make the editor play the two animations synced up somehow.
+            if (mPlayLower &&  mLowerFrame == 0) // mPlayLower && !mPlayUpper && mLowerFrame == 0
+            {
+                mSoundPlayer.Play();
+            }
+            else if (mPlayUpper && mUpperFrame == 0) // !mPlayLower && mPlayUpper && mUpperFrame == 0
+            {
+                mSoundPlayer.Play();
+            }
+            //else if (mPlayLower && mPlayUpper)
+            //{
+            //    var lowerTime = mEditorItem.Lower.FrameCount * mEditorItem.Lower.FrameSpeed;
+            //    var upperTime = mEditorItem.Upper.FrameCount * mEditorItem.Upper.FrameSpeed;
+
+            //    if (lowerTime > upperTime && mLowerFrame == 0)
+            //    {
+            //        mSoundPlayer.Play();
+            //    }
+            //    else if (upperTime > lowerTime && mUpperFrame == 0)
+            //    {
+            //        mSoundPlayer.Play();
+            //    }
+            //}
         }
 
         private void chkDisableLowerRotations_CheckedChanged(object sender, EventArgs e)
