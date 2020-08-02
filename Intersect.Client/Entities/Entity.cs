@@ -1333,9 +1333,14 @@ namespace Intersect.Client.Entities
                     break;
 
                 case (int)DisplayLevelStyles.NameClassLevel:
+                    // If player, we can display our class tag.
                     if (this is Player player)
                     {
                         displayClass = Localization.Strings.GameWindow.CharacterClass.ToString(ClassBase.GetName(player.Class), player.Level);
+                    }
+                    else // Not a player, default to showing level by their name.
+                    {
+                        displayName = Localization.Strings.GameWindow.CharacterName.ToString(Name, Level);
                     }
                     break;
 
