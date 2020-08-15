@@ -1280,6 +1280,13 @@ namespace Intersect.Server.Localization
 
         }
 
+        public sealed class ProfanityNamespace : LocaleNamespace
+        {
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] [NotNull]
+            public readonly LocalizedString MutedForProfanity =
+                @"You were muted for repeated use of profanity.";
+        }
+
         #region Serialization
 
         public static bool Load()
@@ -1413,6 +1420,8 @@ namespace Intersect.Server.Localization
 
             [NotNull] public readonly UpnpNamespace Upnp = new UpnpNamespace();
 
+            [NotNull] public readonly ProfanityNamespace Profanity = new ProfanityNamespace();
+
         }
 
         // ReSharper restore MemberHidesStaticFromOuterClass
@@ -1517,6 +1526,9 @@ namespace Intersect.Server.Localization
 
         [NotNull]
         public static UpnpNamespace Upnp => Root.Upnp;
+
+        [NotNull]
+        public static ProfanityNamespace Profanity => Root.Profanity;
 
         #endregion
 

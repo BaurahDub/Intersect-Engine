@@ -77,12 +77,14 @@ namespace Intersect.Server.General
         /// Filter the provided string with the provided list.
         /// </summary>
         /// <param name="dirtyString">The dirty string that is to be filtered by the profanity filter.</param>
+        /// <param name="filtered">Returns whether or not the string was filtered.</param>
         /// <returns>Returns a clean string after filtering the dirty string with the provided list.</returns>
-        public static string FilterWords(string dirtyString)
+        public static string FilterWords(string dirtyString, out bool filtered)
         {
+            filtered = false;
             // Do we have something to filter?
             if (string.IsNullOrWhiteSpace(dirtyString))
-            {
+            { 
                 return dirtyString;
             }
 
@@ -91,6 +93,11 @@ namespace Intersect.Server.General
             foreach (var filter in regexFilters)
             {
                 filteredString = Regex.Replace(filteredString, filter, StarCensoredMatch, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            }
+
+            if (!dirtyString.Equals(filteredString))
+            {
+                filtered = true;
             }
 
             return filteredString;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-
+using Intersect.Admin.Actions;
 using Intersect.Enums;
 using Intersect.ErrorHandling;
 using Intersect.GameObjects;
@@ -492,7 +492,23 @@ namespace Intersect.Server.Networking
             }
 
             // Filter for profanity, but only on the message portion.
-            msg = ProfanityFilter.FilterWords(msg);
+            bool filtered = false;
+            msg = ProfanityFilter.FilterWords(msg, out filtered);
+
+            // Are we muting players for profanity?
+            if (Options.MuteForProfanity && filtered)
+            {
+                // We are, and this person was a very naughty boy.
+                player.ProfanityUsed += 1;
+
+                // Are they a repeat offender? If so, mute them accordingly and do not let them speak.
+                if (player.ProfanityUsed > Options.ProfanityCountBeforeMute)
+                {
+                    ActionProcessing.ProcessAction(client, player, new MuteAction(player.Name, Options.ProfanityMuteDays, Strings.Profanity.MutedForProfanity, false));
+                    PacketSender.SendChatMsg(player, client?.User?.Mute?.Reason);
+                    return;
+                } 
+            }
 
             var msgSplit = msg.Split(new char[] {' '}, StringSplitOptions.RemoveEmptyEntries);
 

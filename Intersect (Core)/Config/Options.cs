@@ -127,6 +127,12 @@ namespace Intersect
 
         public static int MinChatInterval => Instance.ChatOpts.MinIntervalBetweenChats;
 
+        public static bool MuteForProfanity => Instance.ChatOpts.MuteForProfanity;
+
+        public static int ProfanityCountBeforeMute => Instance.ChatOpts.ProfanityCountBeforeMute;
+
+        public static int ProfanityMuteDays => Instance.ChatOpts.ProfanityMuteDays;
+
         public static LootOptions Loot => Instance.LootOpts;
 
         public static PartyOptions Party => Instance.PartyOpts;
