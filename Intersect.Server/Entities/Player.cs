@@ -47,7 +47,7 @@ namespace Intersect.Server.Entities
 
         [NotMapped, JsonIgnore] public long LastChatTime = -1;
 
-        public int ProfanityUsed = 0;
+        [NotMapped, JsonIgnore] public int ProfanityUsed = 0;
 
         #region Quests
 

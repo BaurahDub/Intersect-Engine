@@ -504,6 +504,7 @@ namespace Intersect.Server.Networking
                 // Are they a repeat offender? If so, mute them accordingly and do not let them speak.
                 if (player.ProfanityUsed > Options.ProfanityCountBeforeMute)
                 {
+                    player.ProfanityUsed = 0;   // Reset it so we don't get stuck instantly being muted again after the mute expires.
                     ActionProcessing.ProcessAction(client, player, new MuteAction(player.Name, Options.ProfanityMuteDays, Strings.Profanity.MutedForProfanity, false));
                     PacketSender.SendChatMsg(player, client?.User?.Mute?.Reason);
                     return;
