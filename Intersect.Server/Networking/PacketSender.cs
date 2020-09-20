@@ -32,7 +32,8 @@ namespace Intersect.Server.Networking
 
         //Cached GameDataPacket that gets sent to clients
         public static GameDataPacket CachedGameDataPacket = null;
-
+        //reqcheck
+        public static string reqcheck;
         //PingPacket
         public static void SendPing(Client client, bool request = true)
         {
@@ -334,6 +335,10 @@ namespace Intersect.Server.Networking
             if (en == player)
             {
                 SendExperience(player);
+                SendFarmingExperience(player);
+                SendMiningExperience(player);
+                SendFishingExperience(player);
+                SendWoodExperience(player);
                 SendInventory(player);
                 SendPlayerSpells(player);
                 SendPointsTo(player);
@@ -344,9 +349,11 @@ namespace Intersect.Server.Networking
             }
 
             //If a player, send equipment to all (for paperdolls)
+            //Also send Custom Sprite Layers
             if (en.GetType() == typeof(Player))
             {
                 SendPlayerEquipmentTo(player, (Player) en);
+                SendCustomSpriteLayersTo(player, (Player) en);
             }
 
             if (en.GetType() == typeof(Npc))
@@ -377,6 +384,7 @@ namespace Intersect.Server.Networking
             player.SendPacket(new MapEntitiesPacket(enPackets.ToArray()));
 
             SendMapEntityEquipmentTo(player, sendEntities); //Send the equipment of each player
+            SendMapCustomSpriteLayersTo(player, sendEntities); //Send the custom sprite layers of each player.
 
             for (var i = 0; i < sendEntities.Count; i++)
             {
@@ -397,6 +405,21 @@ namespace Intersect.Server.Networking
                     if (entities[i].GetType() == typeof(Player) && player != entities[i])
                     {
                         SendPlayerEquipmentTo(player, (Player) entities[i]);
+                    }
+                }
+            }
+        }
+
+        public static void SendMapCustomSpriteLayersTo(Player player, List<Entity> entities)
+        {
+            for (var i = 0; i < entities.Count; i++)
+            {
+                if (entities[i] != null && entities[i] != player)
+                {
+                    //If a player, send equipment to all (for paperdolls)
+                    if (entities[i].GetType() == typeof(Player) && player != entities[i])
+                    {
+                        SendCustomSpriteLayersTo(player, (Player)entities[i]);
                     }
                 }
             }
@@ -428,6 +451,7 @@ namespace Intersect.Server.Networking
             if (en.GetType() == typeof(Player))
             {
                 SendPlayerEquipmentToProximity((Player) en);
+                SendCustomSpriteLayersToProximity((Player) en);
             }
 
             if (en.GetType() == typeof(Npc))
@@ -946,6 +970,22 @@ namespace Intersect.Server.Networking
             player.SendPacket(new SpellUpdatePacket(slot, player.Spells[slot].SpellId));
         }
 
+        //CustomSpriteLayerPacket
+        public static CustomSpriteLayersPacket GenerateCustomSpriteLayersPacket(Player en)
+        {
+            return new CustomSpriteLayersPacket(en.Id, en.CustomSpriteLayers);
+        }
+
+        public static void SendCustomSpriteLayersTo(Player forPlayer, Player en)
+        {
+            forPlayer.SendPacket(GenerateCustomSpriteLayersPacket(en));
+        }
+
+        public static void SendCustomSpriteLayersToProximity(Player en)
+        {
+            SendDataToProximity(en.MapId, GenerateCustomSpriteLayersPacket(en));
+        }
+
         //EquipmentPacket
         public static EquipmentPacket GenerateEquipmentPacket(Player forPlayer, Player en)
         {
@@ -1064,7 +1104,7 @@ namespace Intersect.Server.Networking
                     characters.Add(
                         new CharacterPacket(
                             character.Id, character.Name, character.Sprite, character.Face, character.Level,
-                            ClassBase.GetName(character.ClassId), equipment
+                        ClassBase.GetName(character.ClassId), equipment, character.CustomSpriteLayers
                         )
                     );
                 }
@@ -1206,6 +1246,39 @@ namespace Intersect.Server.Networking
         public static void SendExperience(Player player)
         {
             player.SendPacket(new ExperiencePacket(player.Exp, player.ExperienceToNextLevel));
+           
+        }
+        public static void SendFarmingExperience(Player player)
+        {
+           
+            player.SendPacket(new FarmingExperiencePacket(player.FarmingExp, player.ExperienceToFarmingNextLevel));
+           
+        }
+
+        public static void SendMiningExperience(Player player)
+        {
+
+            player.SendPacket(new MiningExperiencePacket(player.MiningExp, player.ExperienceToMiningNextLevel));
+
+        }
+        public static void SendFishingExperience(Player player)
+        {
+
+            player.SendPacket(new FishingExperiencePacket(player.FishingExp, player.ExperienceToFishingNextLevel));
+
+        }
+        public static void SendWoodExperience(Player player)
+        {
+
+            player.SendPacket(new WoodExperiencePacket(player.WoodExp, player.ExperienceToWoodNextLevel));
+
+        }
+
+        public static void SendFactionExperience(Player player)
+        {
+
+            player.SendPacket(new WoodExperiencePacket(player.FactionExp, player.ExperienceToFactionNextLevel));
+
         }
 
         //PlayAnimationPacket
@@ -1309,14 +1382,37 @@ namespace Intersect.Server.Networking
         {
             if (table != null)
             {
-                player.SendPacket(new CraftingTablePacket(table.JsonData, false));
+                reqcheck = "";
+                for (var i = 0; i < table?.Crafts?.Count; ++i)
+                {
+                    if (!Conditions.MeetsConditionLists(CraftBase.Get(table.Crafts[i]).CraftRequirements, player, null))
+                    {
+                        reqcheck += i + "-";
+                    }
+                }
+                player.SendPacket(new CraftingTablePacket(table.JsonData, false, reqcheck));
             }
         }
 
-        //CraftingTablePacket
+       //CraftingTablePacket
         public static void SendCloseCraftingTable(Player player)
         {
-            player.SendPacket(new CraftingTablePacket(null, true));
+            player.SendPacket(new CraftingTablePacket(null, true, null));
+        }
+
+        //CraftStartPacket
+        public static void SendStartCraft(Player player, Guid craft)
+        {
+            if (craft != null)
+            {
+                player.SendPacket(new CraftStartPacket(craft, true));
+            }
+        }
+
+        //CraftStartPacket
+        public static void SendStartCraft(Player player)
+        {
+            player.SendPacket(new CraftStartPacket(Guid.Empty, false));
         }
 
         //BankUpdatePacket

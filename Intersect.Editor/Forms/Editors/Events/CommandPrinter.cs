@@ -584,8 +584,60 @@ namespace Intersect.Editor.Forms.Editors.Events
 
         private static string GetCommandText(GiveExperienceCommand command, MapInstance map)
         {
-            return Strings.EventCommandList.giveexp.ToString(command.Exp);
+            if(command.Exp == 0)
+            { 
+                
+            }
+            else 
+            { 
+                return Strings.EventCommandList.giveexp.ToString(command.Exp); 
+            }
+            if (command.FarmingExp == 0)
+            {
+
+            }
+            else
+            {
+                return Strings.EventCommandList.giveFarmingexp.ToString(command.FarmingExp);
+            }
+            if (command.MiningExp == 0)
+            {
+
+            }
+            else
+            {
+                return Strings.EventCommandList.giveMiningexp.ToString(command.MiningExp);
+            }
+            if (command.FishingExp == 0)
+            {
+
+            }
+            else
+            {
+                return Strings.EventCommandList.giveFishingexp.ToString(command.FishingExp);
+            }
+            if (command.WoodExp == 0)
+            {
+
+            }
+            else
+            {
+                return Strings.EventCommandList.giveWoodexp.ToString(command.WoodExp);
+            }
+
+            if (command.FactionXP == 0)
+            {
+
+            }
+            else
+            {
+                return Strings.EventCommandList.giveFactionexp.ToString(command.FactionXP);
+            }
+           
+            return " ";
         }
+
+        
 
         private static string GetCommandText(ChangeLevelCommand command, MapInstance map)
         {
@@ -635,6 +687,11 @@ namespace Intersect.Editor.Forms.Editors.Events
             return Strings.EventCommandList.setface.ToString(command.Face);
         }
 
+        private static string GetCommandText(ChangeHairCommand command, MapInstance map)
+        {
+            return Strings.EventCommandList.sethair.ToString(command.Hair);
+        }
+
         private static string GetCommandText(ChangeNameColorCommand command, MapInstance map)
         {
             if (command.Remove)
@@ -662,6 +719,25 @@ namespace Intersect.Editor.Forms.Editors.Events
             {
                 return Strings.EventCommandList.setgender.ToString(Strings.EventCommandList.female);
             }
+        }
+        private static string GetCommandText(ChangeFactionCommand command, MapInstance map)
+        {
+
+            switch (command.Faction)
+            {
+                case Factions.Mezuk:
+                    return Strings.EventCommandList.setFaction.ToString(Strings.EventCommandList.Mezuk);
+                    
+
+                case Factions.Gollik:
+                    return Strings.EventCommandList.setFaction.ToString(Strings.EventCommandList.Gollik);
+                   
+                
+                    
+                    
+            }
+            return Strings.EventCommandList.setFaction.ToString(Strings.EventCommandList.Neutral);
+
         }
 
         private static string GetCommandText(SetAccessCommand command, MapInstance map)
@@ -1080,6 +1156,22 @@ namespace Intersect.Editor.Forms.Editors.Events
                     varvalue = Strings.EventCommandList.subtractvariable.ToString(mod.Value);
 
                     break;
+                case Enums.VariableMods.Multiply:
+                    varvalue = Strings.EventCommandList.multiplyvariable.ToString(mod.Value);
+
+                    break;
+                case Enums.VariableMods.Divide:
+                    varvalue = Strings.EventCommandList.dividevariable.ToString(mod.Value);
+
+                    break;
+                case Enums.VariableMods.LeftShift:
+                    varvalue = Strings.EventCommandList.leftshiftvariable.ToString(mod.Value);
+
+                    break;
+                case Enums.VariableMods.RightShift:
+                    varvalue = Strings.EventCommandList.rightshiftvariable.ToString(mod.Value);
+
+                    break;
                 case Enums.VariableMods.Random:
                     varvalue = Strings.EventCommandList.randvariable.ToString(mod.Value, mod.HighValue);
 
@@ -1120,6 +1212,54 @@ namespace Intersect.Editor.Forms.Editors.Events
                     break;
                 case Enums.VariableMods.SubtractGlobalVar:
                     varvalue = Strings.EventCommandList.subtractglobalvariable.ToString(
+                        ServerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.MultiplyPlayerVar:
+                    varvalue = Strings.EventCommandList.multiplyplayervariable.ToString(
+                        PlayerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.MultiplyGlobalVar:
+                    varvalue = Strings.EventCommandList.multiplyglobalvariable.ToString(
+                        ServerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.DividePlayerVar:
+                    varvalue = Strings.EventCommandList.divideplayervariable.ToString(
+                        PlayerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.DivideGlobalVar:
+                    varvalue = Strings.EventCommandList.divideglobalvariable.ToString(
+                        ServerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.LeftShiftPlayerVar:
+                    varvalue = Strings.EventCommandList.leftshiftplayervariable.ToString(
+                        PlayerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.LeftShiftGlobalVar:
+                    varvalue = Strings.EventCommandList.leftshiftglobalvariable.ToString(
+                        ServerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.RightShiftPlayerVar:
+                    varvalue = Strings.EventCommandList.rightshiftplayervariable.ToString(
+                        PlayerVariableBase.GetName(mod.DuplicateVariableId)
+                    );
+
+                    break;
+                case Enums.VariableMods.RightShiftGlobalVar:
+                    varvalue = Strings.EventCommandList.rightshiftglobalvariable.ToString(
                         ServerVariableBase.GetName(mod.DuplicateVariableId)
                     );
 

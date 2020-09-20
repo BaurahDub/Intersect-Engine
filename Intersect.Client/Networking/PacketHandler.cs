@@ -495,6 +495,26 @@ namespace Intersect.Client.Networking
                         en.OffsetX = -Options.TileWidth;
 
                         break;
+                    case 4:
+                        en.OffsetY = Options.TileHeight;
+                        en.OffsetX = Options.TileWidth;
+
+                        break;
+                    case 5:
+                        en.OffsetY = Options.TileHeight;
+                        en.OffsetX = -Options.TileWidth;
+
+                        break;
+                    case 6:
+                        en.OffsetY = -Options.TileHeight;
+                        en.OffsetX = Options.TileWidth;
+
+                        break;
+                    case 7:
+                        en.OffsetY = -Options.TileHeight;
+                        en.OffsetX = -Options.TileWidth;
+
+                        break;
                 }
             }
 
@@ -843,6 +863,7 @@ namespace Intersect.Client.Networking
                     if (!map.MapItems.ContainsKey(packet.ItemIndex))
                     {
                         map.MapItems.Add(packet.ItemIndex, new MapItemInstance(packet.ItemData));
+                        map.MapItems[packet.ItemIndex].hasFallen = 1f;
                     }
                     else
                     {
@@ -909,6 +930,19 @@ namespace Intersect.Client.Networking
                     {
                         entity.Equipment = packet.ItemIds;
                     }
+                }
+            }
+        }
+
+        private static void HandlePacket(CustomSpriteLayersPacket packet)
+        {
+            var entityId = packet.EntityId;
+            if (Globals.Entities.ContainsKey(entityId))
+            {
+                var entity = Globals.Entities[entityId];
+                if (entity != null)
+                {
+                    ((Player)entity).CustomSpriteLayers = packet.CustomSpriteLayers;
                 }
             }
         }
@@ -1014,7 +1048,47 @@ namespace Intersect.Client.Networking
                 Globals.Me.ExperienceToNextLevel = packet.ExperienceToNextLevel;
             }
         }
+        private static void HandlePacket(FarmingExperiencePacket packet)
+        {
+            if (Globals.Me != null)
+            {
+                Globals.Me.FarmingExperience = packet.FarmingExperience;
+                Globals.Me.ExperienceToFarmingNextLevel = packet.ExperienceToFarmingNextLevel;
 
+             
+            }
+        }
+
+        private static void HandlePacket(MiningExperiencePacket packet)
+        {
+            if (Globals.Me != null)
+            {
+                Globals.Me.MiningExperience = packet.MiningExperience;
+                Globals.Me.ExperienceToMiningNextLevel = packet.ExperienceToMiningNextLevel;
+
+
+            }
+        }
+        private static void HandlePacket(FishingExperiencePacket packet)
+        {
+            if (Globals.Me != null)
+            {
+                Globals.Me.FishingExperience = packet.FishingExperience;
+                Globals.Me.ExperienceToFishingNextLevel = packet.ExperienceToFishingNextLevel;
+
+
+            }
+        }
+        private static void HandlePacket(WoodExperiencePacket packet)
+        {
+            if (Globals.Me != null)
+            {
+                Globals.Me.WoodExperience = packet.WoodExperience;
+                Globals.Me.ExperienceToWoodNextLevel = packet.ExperienceToWoodNextLevel;
+
+
+            }
+        }
         //ProjectileDeadPacket
         private static void HandlePacket(ProjectileDeadPacket packet)
         {
@@ -1185,11 +1259,26 @@ namespace Intersect.Client.Networking
             {
                 Globals.ActiveCraftingTable = new CraftingTableBase();
                 Globals.ActiveCraftingTable.Load(packet.TableData);
+                Globals.ActiveCraftingTableReqs = packet.ReqCheck;
                 Interface.Interface.GameUi.NotifyOpenCraftingTable();
             }
             else
             {
                 Interface.Interface.GameUi.NotifyCloseCraftingTable();
+            }
+        }
+
+        //CraftStartPacket
+        private static void HandlePacket(CraftStartPacket packet)
+        {
+            if (!packet.Canstart)
+            {
+                Globals.canCraftrq = false;
+            }
+            else
+            {
+                Globals.canCraftrq = true;
+                Globals.canCraftitem = packet.CraftData;
             }
         }
 
@@ -1625,7 +1714,7 @@ namespace Intersect.Client.Networking
             foreach (var chr in packet.Characters)
             {
                 characters.Add(
-                    new Character(chr.Id, chr.Name, chr.Sprite, chr.Face, chr.Level, chr.ClassName, chr.Equipment)
+                    new Character(chr.Id, chr.Name, chr.Sprite, chr.Face, chr.Level, chr.ClassName, chr.Equipment, chr.CustomSpriteLayers)
                 );
             }
 
@@ -1648,7 +1737,7 @@ namespace Intersect.Client.Networking
                     new KeyValuePair<string, string>(Strings.ResetPass.success, Strings.ResetPass.successmsg)
                 );
 
-                Interface.Interface.MenuUi.MainMenu.NotifyOpenLogin();
+                /*Interface.Interface.MenuUi.MainMenu.NotifyOpenLogin();*/
             }
             else
             {

@@ -214,9 +214,21 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
             cmbGender.Items.Add(Strings.EventConditional.male);
             cmbGender.Items.Add(Strings.EventConditional.female);
 
+            //Gender is
+            GrpFaction.Text = Strings.EventConditional.Factionis;
+            label1.Text = Strings.EventConditional.Faction;
+            cmbFaction.Items.Clear();
+            cmbFaction.Items.Add(Strings.EventConditional.Mezuk);
+            cmbFaction.Items.Add(Strings.EventConditional.Gollik);
+            cmbFaction.Items.Add(Strings.EventConditional.Neutral);
             //Map Is
             grpMapIs.Text = Strings.EventConditional.mapis;
             btnSelectMap.Text = Strings.EventConditional.selectmap;
+
+            // Free Inventory Slots
+            grpFreeInventorySlots.Text = Strings.EventConditional.FreeInventorySlots;
+            lblFreeInventorySlotAmount.Text = Strings.EventConditional.hasatleast;
+
 
             btnSave.Text = Strings.EventConditional.okay;
             btnCancel.Text = Strings.EventConditional.cancel;
@@ -317,6 +329,8 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
                     cmbGender.SelectedIndex = 0;
 
                     break;
+
+             
                 case ConditionTypes.MapIs:
                     Condition = new MapIsCondition();
                     btnSelectMap.Tag = Guid.Empty;
@@ -330,6 +344,17 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
                     }
 
                     break;
+                case ConditionTypes.HasFreeInventorySlots:
+                    Condition = new HasFreeInventorySlots();
+                    nudFreeInventorySlots.Value = 1;
+
+                    break;
+                case ConditionTypes.FactionIs:
+                    Condition = new FactionIsCondition();
+                    cmbFaction.SelectedIndex = 0;
+
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -351,6 +376,8 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
             grpGender.Hide();
             grpMapIs.Hide();
             grpEquippedItem.Hide();
+            grpFreeInventorySlots.Hide();
+            GrpFaction.Hide();
             switch (type)
             {
                 case ConditionTypes.VariableIs:
@@ -436,6 +463,11 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
                     grpGender.Show();
 
                     break;
+
+                case ConditionTypes.FactionIs:
+                    GrpFaction.Show();
+
+                    break;
                 case ConditionTypes.MapIs:
                     grpMapIs.Show();
 
@@ -444,6 +476,11 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
                     grpEquippedItem.Show();
                     cmbEquippedItem.Items.Clear();
                     cmbEquippedItem.Items.AddRange(ItemBase.Names);
+
+                    break;
+
+                case ConditionTypes.HasFreeInventorySlots:
+                    grpFreeInventorySlots.Show();
 
                     break;
                 default:
@@ -851,6 +888,11 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
             );
         }
 
+        private void NudItemAmount_ValueChanged(object sender, System.EventArgs e)
+        {
+            nudItemAmount.Value = Math.Max(1, nudItemAmount.Value);
+        }
+
         #region "SetupFormValues"
 
         private void SetupFormValues(VariableIsCondition condition)
@@ -956,6 +998,11 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
             cmbGender.SelectedIndex = (int) condition.Gender;
         }
 
+        private void SetupFormValues(FactionIsCondition condition)
+        {
+            cmbFaction.SelectedIndex = (int)condition.Faction;
+        }
+
         private void SetupFormValues(MapIsCondition condition)
         {
             btnSelectMap.Tag = condition.MapId;
@@ -965,6 +1012,12 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
         {
             cmbEquippedItem.SelectedIndex = ItemBase.ListIndex(condition.ItemId);
         }
+
+        private void SetupFormValues(HasFreeInventorySlots condition)
+        {
+            nudFreeInventorySlots.Value = condition.Quantity;
+        }
+
 
         #endregion
 
@@ -1085,7 +1138,10 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
         {
             condition.Gender = (Gender) cmbGender.SelectedIndex;
         }
-
+        private void SaveFormValues(FactionIsCondition condition)
+        {
+            condition.Faction = (Factions)cmbFaction.SelectedIndex;
+        }
         private void SaveFormValues(MapIsCondition condition)
         {
             condition.MapId = (Guid) btnSelectMap.Tag;
@@ -1096,6 +1152,10 @@ namespace Intersect.Editor.Forms.Editors.Events.Event_Commands
             condition.ItemId = ItemBase.IdFromList(cmbEquippedItem.SelectedIndex);
         }
 
+        private void SaveFormValues(HasFreeInventorySlots condition)
+        {
+            condition.Quantity = (int) nudFreeInventorySlots.Value;
+        }
         #endregion
 
     }

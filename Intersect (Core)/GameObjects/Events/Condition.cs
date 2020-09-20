@@ -38,6 +38,8 @@ namespace Intersect.GameObjects.Events
 
         IsItemEquipped,
 
+        HasFreeInventorySlots,
+        FactionIs
     }
 
     public class Condition
@@ -183,6 +185,14 @@ namespace Intersect.GameObjects.Events
         public Gender Gender { get; set; } = Gender.Male;
 
     }
+    public class FactionIsCondition : Condition
+    {
+
+        public override ConditionTypes Type { get; } = ConditionTypes.FactionIs;
+
+        public Factions Faction{ get; set; } = Factions.Neutral;
+
+    }
 
     public class MapIsCondition : Condition
     {
@@ -200,6 +210,22 @@ namespace Intersect.GameObjects.Events
 
         public Guid ItemId { get; set; }
 
+    }
+
+    /// <summary>
+    /// Defines the condition class used when checking for a player's free inventory slots.
+    /// </summary>
+    public class HasFreeInventorySlots : Condition
+    {
+        /// <summary>
+        /// Defines the type of condition.
+        /// </summary>
+        public override ConditionTypes Type { get; } = ConditionTypes.HasFreeInventorySlots;
+
+        /// <summary>
+        /// Defines the amount of inventory slots that need to be free to clear this condition.
+        /// </summary>
+        public int Quantity { get; set; }
     }
 
     public class VariableCompaison

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 
 using Intersect.Client.Core;
+using Intersect.Client.Entities;
 using Intersect.Client.Framework.File_Management;
 using Intersect.Client.Framework.Gwen.Control;
 using Intersect.Client.Framework.Gwen.Control.EventArguments;
@@ -9,6 +10,7 @@ using Intersect.Client.General;
 using Intersect.Client.Interface.Game.Chat;
 using Intersect.Client.Localization;
 using Intersect.Client.Networking;
+using Intersect.Enums;
 using Intersect.GameObjects;
 using Intersect.Utilities;
 
@@ -26,15 +28,17 @@ namespace Intersect.Client.Interface.Menu
 
         private ImagePanel mCharacterPortrait;
 
+        private ImagePanel mCharacterHair;
+
         //Image
         private string mCharacterPortraitImg = "";
 
-        private Label mCharCreationHeader;
+        private Framework.Gwen.Control.Label mCharCreationHeader;
 
         //Controls
         private ImagePanel mCharCreationPanel;
 
-        private Label mCharnameLabel;
+        private Framework.Gwen.Control.Label mCharnameLabel;
 
         private TextBox mCharnameTextbox;
 
@@ -42,11 +46,13 @@ namespace Intersect.Client.Interface.Menu
 
         private ComboBox mClassCombobox;
 
-        private Label mClassLabel;
+        private  Framework.Gwen.Control.Label mClassLabel;
 
         private Button mCreateButton;
 
         private int mDisplaySpriteIndex = -1;
+
+        private int[] mDisplayCustomSpriteLayerIndex = new int[(int)Enums.CustomSpriteLayers.CustomCount];
 
         private LabeledCheckBox mFemaleChk;
 
@@ -54,23 +60,39 @@ namespace Intersect.Client.Interface.Menu
 
         private ImagePanel mGenderBackground;
 
-        private Label mGenderLabel;
+        private Framework.Gwen.Control.Label mGenderLabel;
+        private Framework.Gwen.Control.Label mFactionLabel;
+        private Framework.Gwen.Control.Label mHint2Label;
 
-        private Label mHint2Label;
-
-        private Label mHintLabel;
+        private Framework.Gwen.Control.Label mHintLabel;
 
         //Parent
         private MainMenu mMainMenu;
 
         private LabeledCheckBox mMaleChk;
 
+        private LabeledCheckBox mGollikhk;
+
+        private LabeledCheckBox mMezukhk;
+
+        private Framework.Gwen.Control.Label mHint3Label;
+
+        private Framework.Gwen.Control.Label mHint4Label;
         //Class Info
         private List<KeyValuePair<int, ClassSprite>> mMaleSprites = new List<KeyValuePair<int, ClassSprite>>();
+
+        private Dictionary<Enums.CustomSpriteLayers, List<KeyValuePair<int, CustomSpriteLayer>>> mMaleCustomSpriteLayers = new Dictionary<Enums.CustomSpriteLayers, List<KeyValuePair<int, CustomSpriteLayer>>>();
+
+        private Dictionary<Enums.CustomSpriteLayers, List<KeyValuePair<int, CustomSpriteLayer>>> mFemaleCustomSpriteLayers = new Dictionary<Enums.CustomSpriteLayers, List<KeyValuePair<int, CustomSpriteLayer>>>();
 
         private Button mNextSpriteButton;
 
         private Button mPrevSpriteButton;
+
+        private Button mNextHairButton;
+
+        private Button mPrevHairButton;
+
 
         private SelectCharacterWindow mSelectCharacterWindow;
 
@@ -91,14 +113,14 @@ namespace Intersect.Client.Interface.Menu
             mCharCreationPanel.IsHidden = true;
 
             //Menu Header
-            mCharCreationHeader = new Label(mCharCreationPanel, "CharacterCreationHeader");
+            mCharCreationHeader = new Framework.Gwen.Control.Label(mCharCreationPanel, "CharacterCreationHeader");
             mCharCreationHeader.SetText(Strings.CharacterCreation.title);
 
             //Character Name Background
             mCharacterNameBackground = new ImagePanel(mCharCreationPanel, "CharacterNamePanel");
 
             //Character name Label
-            mCharnameLabel = new Label(mCharacterNameBackground, "CharacterNameLabel");
+            mCharnameLabel = new Framework.Gwen.Control.Label(mCharacterNameBackground, "CharacterNameLabel");
             mCharnameLabel.SetText(Strings.CharacterCreation.name);
 
             //Character name Textbox
@@ -109,7 +131,7 @@ namespace Intersect.Client.Interface.Menu
             mClassBackground = new ImagePanel(mCharCreationPanel, "ClassPanel");
 
             //Class Label
-            mClassLabel = new Label(mClassBackground, "ClassLabel");
+            mClassLabel = new Framework.Gwen.Control.Label(mClassBackground, "ClassLabel");
             mClassLabel.SetText(Strings.CharacterCreation.Class);
 
             //Class Combobox
@@ -117,14 +139,23 @@ namespace Intersect.Client.Interface.Menu
             mClassCombobox.ItemSelected += classCombobox_ItemSelected;
 
             //Hint Label
-            mHintLabel = new Label(mCharCreationPanel, "HintLabel");
+            mHintLabel = new Framework.Gwen.Control.Label(mCharCreationPanel, "HintLabel");
             mHintLabel.SetText(Strings.CharacterCreation.hint);
             mHintLabel.IsHidden = true;
 
             //Hint2 Label
-            mHint2Label = new Label(mCharCreationPanel, "Hint2Label");
+          mHint2Label = new Framework.Gwen.Control.Label(mCharCreationPanel, "Hint2Label");
             mHint2Label.SetText(Strings.CharacterCreation.hint2);
             mHint2Label.IsHidden = true;
+
+            /*mHint3Label = new Label(mCharCreationPanel, "Hint3Label");
+          mHint3Label.SetText(Strings.CharacterCreation.hint);
+          mHint3Label.IsHidden = true;
+
+            //Hint2 Label
+            mHint4Label = new Label(mCharCreationPanel, "Hint4Label");
+            mHint4Label.SetText(Strings.CharacterCreation.hint2);
+            mHint4Label.IsHidden = true;*/
 
             //Character Container
             mCharacterContainer = new ImagePanel(mCharCreationPanel, "CharacterContainer");
@@ -132,6 +163,10 @@ namespace Intersect.Client.Interface.Menu
             //Character sprite
             mCharacterPortrait = new ImagePanel(mCharacterContainer, "CharacterPortait");
             mCharacterPortrait.SetSize(48, 48);
+
+            // Hair Sprite
+            mCharacterHair = new ImagePanel(mCharacterContainer, "CharacterHair");
+            mCharacterHair.SetSize(48, 48);
 
             //Next Sprite Button
             mNextSpriteButton = new Button(mCharacterContainer, "NextSpriteButton");
@@ -141,11 +176,19 @@ namespace Intersect.Client.Interface.Menu
             mPrevSpriteButton = new Button(mCharacterContainer, "PreviousSpriteButton");
             mPrevSpriteButton.Clicked += _prevSpriteButton_Clicked;
 
+            //Next Hair Button
+            mNextHairButton = new Button(mCharacterContainer, "NextHairButton");
+            mNextHairButton.Clicked += _nextHairButton_Clicked;
+
+            //Prev Hair Button
+            mPrevHairButton = new Button(mCharacterContainer, "PreviousHairButton");
+            mPrevHairButton.Clicked += _prevHairButton_Clicked;
+
             //Class Background
             mGenderBackground = new ImagePanel(mCharCreationPanel, "GenderPanel");
 
             //Gender Label
-            mGenderLabel = new Label(mGenderBackground, "GenderLabel");
+            mGenderLabel = new Framework.Gwen.Control.Label(mGenderBackground, "GenderLabel");
             mGenderLabel.SetText(Strings.CharacterCreation.gender);
 
             //Male Checkbox
@@ -166,6 +209,28 @@ namespace Intersect.Client.Interface.Menu
 
             mFemaleChk.Checked += femaleChk_Checked;
             mFemaleChk.UnChecked += maleChk_Checked;
+            //Faction Label
+           /* mFactionLabel = new Framework.Gwen.Control.Label(mGenderBackground, "FactionLabel");
+            mFactionLabel.SetText(Strings.CharacterCreation.faction);
+
+            //Male Checkbox
+            mMezukhk = new LabeledCheckBox(mGenderBackground, "MezukCheckbox")
+            {
+                Text = Strings.CharacterCreation.mezuk
+            };
+
+          /*  mMezukhk.IsChecked = true;
+            mMezukhk.Checked += Mezukhk_Checked;
+            mMezukhk.UnChecked += Gollikhk_Checked; // If you notice this, feel free to hate us ;)
+
+            //Female Checkbox
+            mGollikhk = new LabeledCheckBox(mGenderBackground, "GollikCheckbox")
+            {
+                Text = Strings.CharacterCreation.gollik
+            };
+
+            mGollikhk.Checked += Gollikhk_Checked;
+            mGollikhk.UnChecked += Mezukhk_Checked;*/
 
             //Register - Send Registration Button
             mCreateButton = new Button(mCharCreationPanel, "CreateButton");
@@ -218,6 +283,7 @@ namespace Intersect.Client.Interface.Menu
             if (GetClass() != null && mDisplaySpriteIndex != -1)
             {
                 mCharacterPortrait.IsHidden = false;
+                mCharacterHair.IsHidden = false;
                 if (GetClass().Sprites.Count > 0)
                 {
                     if (mMaleChk.IsChecked)
@@ -231,6 +297,17 @@ namespace Intersect.Client.Interface.Menu
                             mCharacterPortrait.Texture = Globals.ContentManager.GetTexture(
                                 GameContentManager.TextureType.Entity, mMaleSprites[mDisplaySpriteIndex].Value.Sprite
                             );
+
+                            if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] != -1)
+                            {
+                                mCharacterHair.Texture = Globals.ContentManager.GetTexture(
+                                    GameContentManager.TextureType.Hair, mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair][mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair]].Value.Texture
+                                );
+                            }
+                            else
+                            {
+                                mCharacterHair.Texture = null;
+                            }
 
                             isFace = false;
                         }
@@ -246,6 +323,17 @@ namespace Intersect.Client.Interface.Menu
                             mCharacterPortrait.Texture = Globals.ContentManager.GetTexture(
                                 GameContentManager.TextureType.Entity, mFemaleSprites[mDisplaySpriteIndex].Value.Sprite
                             );
+
+                            if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] != -1)
+                            {
+                                mCharacterHair.Texture = Globals.ContentManager.GetTexture(
+                                    GameContentManager.TextureType.Hair, mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair][mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair]].Value.Texture
+                                );
+                            }
+                            else
+                            {
+                                mCharacterHair.Texture = null;
+                            }
 
                             isFace = false;
                         }
@@ -281,13 +369,27 @@ namespace Intersect.Client.Interface.Menu
                                 mCharacterPortrait.Texture.GetHeight() / 4
                             );
 
+                            if (mCharacterHair.Texture != null) mCharacterHair.SetTextureRect(
+                                0, 0, mCharacterHair.Texture.GetWidth() / 4,
+                                mCharacterHair.Texture.GetHeight() / 4
+                            );
+
                             mCharacterPortrait.SetSize(
                                 mCharacterPortrait.Texture.GetWidth() / 4, mCharacterPortrait.Texture.GetHeight() / 4
+                            );
+
+                            if (mCharacterHair.Texture != null) mCharacterHair.SetSize(
+                                mCharacterHair.Texture.GetWidth() / 4, mCharacterHair.Texture.GetHeight() / 4
                             );
 
                             mCharacterPortrait.SetPosition(
                                 mCharacterContainer.Width / 2 - mCharacterPortrait.Width / 2,
                                 mCharacterContainer.Height / 2 - mCharacterPortrait.Height / 2
+                            );
+
+                            if (mCharacterHair.Texture != null) mCharacterHair.SetPosition(
+                                mCharacterContainer.Width / 2 - mCharacterHair.Width / 2,
+                                mCharacterContainer.Height / 2 - mCharacterHair.Height / 2
                             );
                         }
                     }
@@ -296,6 +398,7 @@ namespace Intersect.Client.Interface.Menu
             else
             {
                 mCharacterPortrait.IsHidden = true;
+                mCharacterHair.IsHidden = true;
             }
         }
 
@@ -333,6 +436,12 @@ namespace Intersect.Client.Interface.Menu
             mMaleSprites.Clear();
             mFemaleSprites.Clear();
             mDisplaySpriteIndex = -1;
+
+            for (var i = 0; i < (int)Enums.CustomSpriteLayers.CustomCount; i++)
+            {
+                mDisplayCustomSpriteLayerIndex[i] = -1;
+            }
+                
             if (cls != null)
             {
                 for (var i = 0; i < cls.Sprites.Count; i++)
@@ -346,6 +455,28 @@ namespace Intersect.Client.Interface.Menu
                         mFemaleSprites.Add(new KeyValuePair<int, ClassSprite>(i, cls.Sprites[i]));
                     }
                 }
+
+                // Clear our custom sprite layers if they exist, and fill them again.
+                mMaleCustomSpriteLayers.Clear();
+                mFemaleCustomSpriteLayers.Clear();
+                for (var i = 0; i < (int)Enums.CustomSpriteLayers.CustomCount; i++)
+                {
+                    var layer = (Enums.CustomSpriteLayers)i; 
+                    mMaleCustomSpriteLayers.Add(layer, new List<KeyValuePair<int, CustomSpriteLayer>>());
+                    mFemaleCustomSpriteLayers.Add(layer, new List<KeyValuePair<int, CustomSpriteLayer>>());
+                    for (var n = 0; n < cls.CustomSpriteLayers[layer].Count; n++)
+                    {
+                        if (cls.CustomSpriteLayers[layer][n].Gender == 0)
+                        {
+                            mMaleCustomSpriteLayers[layer].Add(new KeyValuePair<int, CustomSpriteLayer>(n, cls.CustomSpriteLayers[layer][n]));
+                        } 
+                        else
+                        {
+                            mFemaleCustomSpriteLayers[layer].Add(new KeyValuePair<int, CustomSpriteLayer>(n, cls.CustomSpriteLayers[layer][n]));
+                        }
+                    }
+                }
+
             }
 
             ResetSprite();
@@ -355,8 +486,11 @@ namespace Intersect.Client.Interface.Menu
         {
             mNextSpriteButton.IsHidden = true;
             mPrevSpriteButton.IsHidden = true;
+            mNextHairButton.IsHidden = true;
+            mPrevHairButton.IsHidden = true;
             if (mMaleChk.IsChecked)
             {
+                // Sprite
                 if (mMaleSprites.Count > 0)
                 {
                     mDisplaySpriteIndex = 0;
@@ -370,9 +504,25 @@ namespace Intersect.Client.Interface.Menu
                 {
                     mDisplaySpriteIndex = -1;
                 }
+
+                // Hair
+                if (mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0) 
+                    {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = 0;
+                    if (mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 1) 
+                    {
+                        mNextHairButton.IsHidden = false;
+                        mPrevHairButton.IsHidden = false;
+                    }
+                } 
+                else 
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
+                }
             }
             else
             {
+                // Sprite
                 if (mFemaleSprites.Count > 0)
                 {
                     mDisplaySpriteIndex = 0;
@@ -385,6 +535,20 @@ namespace Intersect.Client.Interface.Menu
                 else
                 {
                     mDisplaySpriteIndex = -1;
+                }
+                // Hair
+                if (mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0) 
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = 0;
+                    if (mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 1) 
+                    {
+                        mNextHairButton.IsHidden = false;
+                        mPrevHairButton.IsHidden = false;
+                    }
+                } 
+                else 
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
                 }
             }
         }
@@ -459,6 +623,75 @@ namespace Intersect.Client.Interface.Menu
             UpdateDisplay();
         }
 
+        private void _prevHairButton_Clicked(Base sender, ClickedEventArgs arguments)
+        {
+            mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair]--;
+            if (mMaleChk.IsChecked)
+            {
+                if (mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0)
+                {
+                    if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] == -1)
+                    {
+                        mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count - 1;
+                    }
+                }
+                else
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
+                }
+            }
+            else
+            {
+                if (mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0)
+                {
+                    if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] == -1)
+                    {
+                        mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count - 1;
+                    }
+                }
+                else
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
+                }
+            }
+
+            UpdateDisplay();
+        }
+
+        private void _nextHairButton_Clicked(Base sender, ClickedEventArgs arguments) {
+            mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair]++;
+            if (mMaleChk.IsChecked)
+            {
+                if (mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0)
+                {
+                    if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] >= mMaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count)
+                    {
+                        mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = 0;
+                    }
+                }
+                else
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
+                }
+            }
+            else
+            {
+                if (mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count > 0)
+                {
+                    if (mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] >= mFemaleCustomSpriteLayers[Enums.CustomSpriteLayers.Hair].Count)
+                    {
+                        mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = 0;
+                    }
+                }
+                else
+                {
+                    mDisplayCustomSpriteLayerIndex[(int)Enums.CustomSpriteLayers.Hair] = -1;
+                }
+            }
+
+            UpdateDisplay();
+        }
+
         void TryCreateCharacter(int gender)
         {
             if (Globals.WaitingOnServer || mDisplaySpriteIndex == -1)
@@ -468,16 +701,33 @@ namespace Intersect.Client.Interface.Menu
 
             if (FieldChecking.IsValidUsername(mCharnameTextbox.Text, Strings.Regex.username))
             {
+                var customSpriteLayers = new int[(int)Enums.CustomSpriteLayers.CustomCount];
                 if (mMaleChk.IsChecked)
                 {
-                    PacketSender.SendCreateCharacter(
-                        mCharnameTextbox.Text, GetClass().Id, mMaleSprites[mDisplaySpriteIndex].Key
-                    );
+                    // Add our custom layers to the packet.
+                    for (var i = 0; i < (int)Enums.CustomSpriteLayers.CustomCount; i++)
+                    {
+                        var layer = (Enums.CustomSpriteLayers)i;
+                        customSpriteLayers[i] = mDisplayCustomSpriteLayerIndex[i] != -1 ? mMaleCustomSpriteLayers[layer][mDisplayCustomSpriteLayerIndex[i]].Key : -1;
+                    }
+                   
+                        
+                        PacketSender.SendCreateCharacter(
+                        mCharnameTextbox.Text, GetClass().Id, mMaleSprites[mDisplaySpriteIndex].Key, customSpriteLayers);
+                                       
+                  
                 }
                 else
                 {
+                    // Add our custom layers to the packet.
+                    for (var i = 0; i < (int)Enums.CustomSpriteLayers.CustomCount; i++)
+                    {
+                        var layer = (Enums.CustomSpriteLayers)i;
+                        customSpriteLayers[i] = mDisplayCustomSpriteLayerIndex[i] != -1 ? mFemaleCustomSpriteLayers[layer][mDisplayCustomSpriteLayerIndex[i]].Key : -1;
+                    }
+
                     PacketSender.SendCreateCharacter(
-                        mCharnameTextbox.Text, GetClass().Id, mFemaleSprites[mDisplaySpriteIndex].Key
+                        mCharnameTextbox.Text, GetClass().Id, mFemaleSprites[mDisplaySpriteIndex].Key, customSpriteLayers
                     );
                 }
 
@@ -524,7 +774,20 @@ namespace Intersect.Client.Interface.Menu
             ResetSprite();
             UpdateDisplay();
         }
+      /*  void Mezukhk_Checked(Base sender, EventArgs arguments)
+        {
+            mMezukhk.IsChecked = true;
+            mGollikhk.IsChecked = false;
+            UpdateDisplay();
+        }
 
+        void Gollikhk_Checked(Base sender, EventArgs arguments)
+        {
+            mGollikhk.IsChecked = true;
+            mMezukhk.IsChecked = false;
+            UpdateDisplay();
+        }*/
+        
         void CreateButton_Clicked(Base sender, ClickedEventArgs arguments)
         {
             if (mMaleChk.IsChecked == true)
@@ -535,6 +798,18 @@ namespace Intersect.Client.Interface.Menu
             {
                 TryCreateCharacter(1);
             }
+
+          /*  if (mMezukhk.IsChecked == true) 
+            {
+                   Globals.Me.Faction= Factions.Mezuk;
+            }
+            else
+            {
+                if (mGollikhk.IsChecked == true)
+                {
+                    Globals.Me.Faction = Factions.Gollik;
+                }
+            }*/
         }
 
         private void BackButton_Clicked(Base sender, ClickedEventArgs arguments)

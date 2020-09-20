@@ -298,6 +298,9 @@ namespace Intersect.Server.Localization
             public readonly LocalizedString levelup = @"LEVEL UP!";
 
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString Farminglevelup = @"FARMING LEVEL UP!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public readonly LocalizedString lowhealth = @"Not enough health.";
 
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
@@ -491,6 +494,15 @@ namespace Intersect.Server.Localization
 
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public readonly LocalizedString nospace = @"You do not have enough inventory space to craft {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString noitems = @"You do not have the required items to craft {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString failed = @"You failed to craft {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString reqnotmet = @"You don't meet the requirements to craft {00}!";
 
         }
 
@@ -776,6 +788,14 @@ namespace Intersect.Server.Localization
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
             public readonly LocalizedString stunned = @"You cannot use this item whilst stunned.";
 
+            [NotNull, JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString NotYours = @"This item does not belong to you!";
+
+            // TODO: Generalize this shit. It's everywhere!
+            [NotNull, JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public readonly LocalizedString InventoryNoSpace =
+                @"There is no space left in your inventory for that item!";
+
         }
 
         public sealed class MappingNamespace : LocaleNamespace
@@ -1054,6 +1074,24 @@ namespace Intersect.Server.Localization
 
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] [NotNull]
             public readonly LocalizedString levelup = @"You have leveled up! You are now level {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            [NotNull]
+            public readonly LocalizedString Farminglevelup = @"Your Farming Skill are now level {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            [NotNull]
+            public readonly LocalizedString Mininglevelup = @"Your Mining Skill are now level {00}!";
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            [NotNull]
+            public readonly LocalizedString Fishinglevelup = @"Your Fishing Skill are now level {00}!";
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            [NotNull]
+            public readonly LocalizedString Woodlevelup = @"Your Woodcutter Skill are now level {00}!";
+
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            [NotNull]
+            public readonly LocalizedString Factionlevelup = @"Your Faction are now level {00}!";
 
             [JsonProperty(NullValueHandling = NullValueHandling.Ignore)] [NotNull]
             public readonly LocalizedString mod = @"{00} has been given moderation powers!";

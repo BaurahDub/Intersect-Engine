@@ -107,10 +107,20 @@ namespace Intersect.Server.Database.PlayerData.SeedData
                         Name = n == 0 ? "test" : $@"test{n:D3}",
                         ClassId = Guid.Empty,
                         Gender = n % 2 == 0 ? Gender.Male : Gender.Female,
+                        Faction = n % 2 == 0 ? Factions.Neutral : Factions.Gollik,
                         Level = 1,
                         Exp = 0,
+                        FarmingExp = 0,
+                        FarmingLevel = 1,
+                        MiningExp = 0,
+                        MiningLevel = 1,
+                        FishingExp = 0,
+                        FishingLevel = 1,
+                        WoodExp = 0,
+                        WoodLevel = 1,
                         StatPoints = 0,
-
+                        FactionLv = 1,
+                        FactionExp = 0,
                         Sprite = "1.png",
                         Face = null
                     };

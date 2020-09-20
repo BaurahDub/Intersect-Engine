@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 
 using Intersect.Client.Core;
 using Intersect.Client.Core.Controls;
 using Intersect.Client.Entities.Events;
 using Intersect.Client.Entities.Projectiles;
+using Intersect.Client.Framework.File_Management;
+using Intersect.Client.Framework.GenericClasses;
+using Intersect.Client.Framework.Graphics;
 using Intersect.Client.General;
 using Intersect.Client.Interface.Game;
 using Intersect.Client.Interface.Game.EntityPanel;
@@ -29,8 +33,26 @@ namespace Intersect.Client.Entities
         public Guid Class;
 
         public long Experience = 0;
-
         public long ExperienceToNextLevel = 0;
+        public long FarmingExperience = 0;
+             
+        public long ExperienceToFarmingNextLevel = 0;
+
+        public long MiningExperience = 0;
+
+        public long ExperienceToMiningNextLevel = 0;
+
+        public long FishingExperience = 0;
+
+        public long ExperienceToFishingNextLevel = 0;
+
+        public long WoodExperience = 0;
+
+        public long ExperienceToWoodNextLevel = 0;
+
+        public long FactionExperience = 0;
+
+        public long FactionExperienceToNextLevel = 0;
 
         public List<FriendInstance> Friends = new List<FriendInstance>();
 
@@ -57,6 +79,11 @@ namespace Intersect.Client.Entities
         public Guid TargetIndex;
 
         public int TargetType;
+        
+        protected string[] mMyCustomSpriteLayers { get; set; } = new string[(int)Enums.CustomSpriteLayers.CustomCount];
+
+        public GameTexture[] CustomSpriteLayersTexture { get; set; } = new GameTexture[(int)Enums.CustomSpriteLayers.CustomCount];
+        public Dictionary<SpriteAnimations, GameTexture[]> CustomSpriteLayersAnimationTexture { get; set; } = new Dictionary<SpriteAnimations, GameTexture[]>();
 
         public Player(Guid id, PlayerEntityPacket packet) : base(id, packet)
         {
@@ -81,6 +108,33 @@ namespace Intersect.Client.Entities
 
                 return mParty;
             }
+        }
+
+        public virtual string[] CustomSpriteLayers
+        {
+            get => mMyCustomSpriteLayers;
+            set
+            {
+                mMyCustomSpriteLayers = value;
+                CustomSpriteLayersTexture = GetCustomSpriteTextures(value);
+            }
+        }
+
+        private GameTexture[] GetCustomSpriteTextures(string[] customSpriteLayers)
+        {
+            var textures = new GameTexture[(int)Enums.CustomSpriteLayers.CustomCount];
+            for (int i=0; i < (int)Enums.CustomSpriteLayers.CustomCount; i++)
+            {
+                switch (i)
+                {
+                    case (int)Enums.CustomSpriteLayers.Hair:
+                        textures[i] = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Hair, customSpriteLayers[i]);
+                        LoadCustomSpriteLayerAnimationTextures(customSpriteLayers[i], Enums.CustomSpriteLayers.Hair, GameContentManager.TextureType.Hair);
+                        break;
+                }  
+            }
+
+            return textures;
         }
 
         public override Guid CurrentMap
@@ -114,21 +168,9 @@ namespace Intersect.Client.Entities
             return Party.Count > 0;
         }
 
-        public bool IsInMyParty(Entity entity)
-        {
-            if (EntityTypes.Player == entity.GetEntityType())
-            {
-                foreach (var member in Party)
-                {
-                    if (member.Id == entity.Id)
-                    {
-                        return true;
-                    }
-                }
-            }
+        public bool IsInMyParty(Player player) => IsInMyParty(player.Id);
 
-            return false;
-        }
+        public bool IsInMyParty(Guid id) => Party.Any(member => member.Id == id);
 
         public bool IsBusy()
         {
@@ -185,6 +227,7 @@ namespace Intersect.Client.Entities
             base.Load(packet);
             var pkt = (PlayerEntityPacket) packet;
             Gender = pkt.Gender;
+            Faction = pkt.Faction;
             Class = pkt.ClassId;
             Type = pkt.AccessLevel;
             CombatTimer = pkt.CombatTimeRemaining + Globals.System.GetTimeMs();
@@ -200,6 +243,17 @@ namespace Intersect.Client.Entities
                     this.Equipment = ((PlayerEntityPacket) packet).Equipment.ItemIds;
                 }
             }
+
+            for (var i = 0; i <= (int)SpriteAnimations.Weapon; i++)
+            {
+                CustomSpriteLayersAnimationTexture[(SpriteAnimations)i] = new GameTexture[(int)Enums.CustomSpriteLayers.CustomCount];
+            }
+
+            if (pkt.CustomSpriteLayers != null)
+            {
+                this.CustomSpriteLayers = pkt.CustomSpriteLayers.CustomSpriteLayers;
+            }
+
         }
 
         public override EntityTypes GetEntityType()
@@ -814,28 +868,49 @@ namespace Intersect.Client.Entities
                 movex = 1;
             }
 
+
+            // Used this so I can do multiple switch case
+            var move = movex / 10 + movey;
+
             Globals.Me.MoveDir = -1;
             if (movex != 0f || movey != 0f)
             {
-                if (movey < 0)
+                switch (move)
                 {
-                    Globals.Me.MoveDir = 1;
+                    case 1.0f:
+                        Globals.Me.MoveDir = 0; // Up
+
+                        break;
+                    case -1.0f:
+                        Globals.Me.MoveDir = 1; // Down
+
+                        break;
+                    case -0.1f: // x = 0, y = -1
+                        Globals.Me.MoveDir = 2; // Left
+
+                        break;
+                    case 0.1f:
+                        Globals.Me.MoveDir = 3; // Right
+
+                        break;
+                    case 0.9f:
+                        Globals.Me.MoveDir = 4; // NW
+
+                        break;
+                    case 1.1f:
+                        Globals.Me.MoveDir = 5; // NE
+
+                        break;
+                    case -1.1f:
+                        Globals.Me.MoveDir = 6; // SW
+
+                        break;
+                    case -0.9f:
+                        Globals.Me.MoveDir = 7; // SE
+
+                        break;
                 }
 
-                if (movey > 0)
-                {
-                    Globals.Me.MoveDir = 0;
-                }
-
-                if (movex < 0)
-                {
-                    Globals.Me.MoveDir = 2;
-                }
-
-                if (movex > 0)
-                {
-                    Globals.Me.MoveDir = 3;
-                }
             }
         }
 
@@ -888,7 +963,7 @@ namespace Intersect.Client.Entities
                     if (en.Value.GetEntityType() == EntityTypes.GlobalEntity ||
                         en.Value.GetEntityType() == EntityTypes.Player)
                     {
-                        if (en.Value != Globals.Me && !Globals.Me.IsInMyParty(en.Value))
+                        if (en.Value != Globals.Me && !(en.Value is Player player && Globals.Me.IsInMyParty(player)))
                         {
                             if (GetDistanceTo(en.Value) < GetDistanceTo(closestEntity))
                             {
@@ -970,23 +1045,89 @@ namespace Intersect.Client.Entities
             int x = Globals.Me.X;
             int y = Globals.Me.Y;
             var map = Globals.Me.CurrentMap;
+            List<int[]> hitbox = new List<int[]>();
             switch (Globals.Me.Dir)
             {
-                case 0:
+                case 0:// Up
+                    hitbox.AddRange(new List<int[]>
+                            {
+                    new int[] { x - 1, y - 1 }, new int[] { x, y - 1 }, new int[] { x + 1, y - 1 },
+                            new int[] { x - 1, y },                              new int[] { x + 1, y },
+                            });
                     y--;
 
                     break;
-                case 1:
+                case 1:// Down
+                    hitbox.AddRange(new List<int[]>
+                            {
+                        new int[] { x - 1, y },new int[] { x + 1, y },
+                        new int[] { x - 1, y + 1 }, new int[] { x, y + 1 }, new int[] { x + 1, y + 1 },
+                           });
                     y++;
 
                     break;
-                case 2:
+                case 2: // Left
+                    hitbox.AddRange(new List<int[]>
+                           {
+                        new int[] { x - 1, y - 1 }, new int[] { x, y - 1 },
+                        new int[] { x - 1, y },
+                        new int[] { x - 1, y + 1 }, new int[] { x, y + 1 }
+                            });
                     x--;
 
                     break;
-                case 3:
+                case 3: // Right
+                    hitbox.AddRange(new List<int[]>
+                            {
+                        new int[] { x, y - 1 }, new int[] { x + 1, y - 1 },
+                        new int[] { x + 1, y },
+                        new int[] { x, y + 1 }, new int[] { x + 1, y + 1 }
+                            });
                     x++;
 
+                    break;
+
+                case 4: // UpLeft
+                    hitbox.AddRange(new List<int[]>
+                                                {
+                        new int[] {x - 1, y - 1 }, new int[] {x, y - 1 }, new int[] {x + 1, y - 1 },
+                        new int[] { x - 1, y },
+                        new int[] {x - 1, y + 1 },
+                    });
+                    y--;
+                    x--;
+
+                    break;
+                case 5: //UpRight
+                    hitbox.AddRange(new List<int[]>
+                                                {
+                         new int[] {x - 1, y - 1 }, new int[] {x, y - 1 }, new int[] {x + 1, y - 1 },
+                                new int[] {x + 1, y },
+                                                                                    new int[] {x + 1, y + 1 } });
+                    y--;
+                    x++;
+
+                    break;
+                case 6: // DownLeft
+                    hitbox.AddRange(new List<int[]>
+                            {
+                        new int[] { x - 1, y - 1 },
+                        new int[] { x - 1, y },
+                        new int[] { x - 1, y + 1 }, new int[] { x, y + 1 }, new int[] { x + 1, y + 1 }
+                            });
+                    y--;
+                    x--;
+
+                    break;
+                case 7: // DownRight
+                    hitbox.AddRange(new List<int[]>
+                                               {
+                        new int[] { x + 1, y - 1 },
+                        new int[] { x + 1, y },
+                        new int[] { x - 1, y + 1 }, new int[] { x, y + 1 }, new int[] { x + 1, y + 1 }
+                            });
+                    y--;
+                    x++;
                     break;
             }
 
@@ -998,19 +1139,42 @@ namespace Intersect.Client.Entities
                     {
                         continue;
                     }
-
+                  
                     if (en.Value != Globals.Me)
                     {
                         if (en.Value.CurrentMap == map &&
-                            en.Value.X == x &&
-                            en.Value.Y == y &&
+                          
                             en.Value.CanBeAttacked())
                         {
-                            //ATTACKKKKK!!!
-                            PacketSender.SendAttack(en.Key);
-                            AttackTimer = Globals.System.GetTimeMs() + CalculateAttackTime();
+                            if (TargetIndex != null && TargetBox != null)
+                            {
+                                bool canAttack = false;
+                                foreach (int[] hitBx in hitbox)
+                                {
+                                    if (hitBx[0] == en.Value.X && hitBx[1] == en.Value.Y)
+                                    {
+                                       
+                                        canAttack = true;
+                                        break;
+                                    }
+                                }
 
-                            return true;
+                                if (canAttack)
+                                {
+                                    PacketSender.SendAttack(en.Key, TargetBox != null);
+                                    AttackTimer = Globals.System.GetTimeMs() + CalculateAttackTime();
+
+                                    return true;
+                                }
+                            }
+                            else if (en.Value.X == x || en.Value.Y == y)
+                            {
+                                //ATTACKKKKK!!!
+                                PacketSender.SendAttack(en.Key, TargetBox != null);
+                                AttackTimer = Globals.System.GetTimeMs() + CalculateAttackTime();
+
+                                return true;
+                            }
                         }
                     }
                 }
@@ -1040,7 +1204,7 @@ namespace Intersect.Client.Entities
             }
 
             //Projectile/empty swing for animations
-            PacketSender.SendAttack(Guid.Empty);
+            PacketSender.SendAttack(Guid.Empty, TargetBox != null);
             AttackTimer = Globals.System.GetTimeMs() + CalculateAttackTime();
 
             return true;
@@ -1137,7 +1301,7 @@ namespace Intersect.Client.Entities
                                 if (en.Value.CurrentMap == mapId &&
                                     en.Value.X == x &&
                                     en.Value.Y == y &&
-                                    (!en.Value.IsStealthed() || Globals.Me.IsInMyParty(en.Value)))
+                                    (!en.Value.IsStealthed() || en.Value is Player player && Globals.Me.IsInMyParty(player)))
                                 {
                                     if (en.Value.GetType() != typeof(Projectile) &&
                                         en.Value.GetType() != typeof(Resource))
@@ -1202,7 +1366,7 @@ namespace Intersect.Client.Entities
                                         en.Value.X == x &&
                                         en.Value.Y == y &&
                                         !((Event) en.Value).DisablePreview &&
-                                        (!en.Value.IsStealthed() || Globals.Me.IsInMyParty(en.Value)))
+                                        (!en.Value.IsStealthed() || en.Value is Player player && Globals.Me.IsInMyParty(player)))
                                     {
                                         if (TargetBox != null)
                                         {
@@ -1267,6 +1431,13 @@ namespace Intersect.Client.Entities
             {
                 if (item.Value.X == X && item.Value.Y == Y)
                 {
+                    // Are we allowed to see and pick this item up?
+                    if (!item.Value.VisibleToAll && item.Value.Owner != Globals.Me.Id && !Globals.Me.IsInMyParty(item.Value.Owner))
+                    {
+                        // This item does not apply to us!
+                        return false;
+                    }
+
                     PacketSender.SendPickupItem(item.Key);
 
                     return true;
@@ -1282,6 +1453,23 @@ namespace Intersect.Client.Entities
             return ExperienceToNextLevel;
         }
 
+        public long GetNextFarmingLevelExperience()
+        {
+            return ExperienceToFarmingNextLevel;
+        }
+
+        public long GetNextMiningLevelExperience()
+        {
+            return ExperienceToMiningNextLevel;
+        }
+        public long GetNextFishingLevelExperience()
+        {
+            return ExperienceToFishingNextLevel;
+        }
+        public long GetNextWoodLevelExperience()
+        {
+            return ExperienceToWoodNextLevel;
+        }
         public override int CalculateAttackTime()
         {
             ItemBase weapon = null;
@@ -1367,18 +1555,24 @@ namespace Intersect.Client.Entities
                 {
                     switch (MoveDir)
                     {
-                        case 0:
+                        // Dir is the direction the player faces
+                        // tmp the next position of the player
+                        // DeplacementDir is used because I don't know how to set the sprite animation for the diagonal mouvement.
+
+                        case 0: // Up
+                            
                             if (IsTileBlocked(X, Y - 1, Z, CurrentMap, ref blockedBy) == -1)
                             {
                                 tmpY--;
-                                Dir = 0;
                                 IsMoving = true;
+                                Dir = 0; // Set the sprite direction
                                 OffsetY = Options.TileHeight;
                                 OffsetX = 0;
                             }
 
                             break;
-                        case 1:
+                        case 1: // Down
+                            
                             if (IsTileBlocked(X, Y + 1, Z, CurrentMap, ref blockedBy) == -1)
                             {
                                 tmpY++;
@@ -1389,7 +1583,8 @@ namespace Intersect.Client.Entities
                             }
 
                             break;
-                        case 2:
+                        case 2: // Left
+                           
                             if (IsTileBlocked(X - 1, Y, Z, CurrentMap, ref blockedBy) == -1)
                             {
                                 tmpX--;
@@ -1400,7 +1595,8 @@ namespace Intersect.Client.Entities
                             }
 
                             break;
-                        case 3:
+                        case 3: // Right
+                            
                             if (IsTileBlocked(X + 1, Y, Z, CurrentMap, ref blockedBy) == -1)
                             {
                                 tmpX++;
@@ -1410,6 +1606,54 @@ namespace Intersect.Client.Entities
                                 OffsetX = -Options.TileWidth;
                             }
 
+                            break;
+                        case 4: // NW
+                           
+                            if (IsTileBlocked(X - 1, Y - 1, Z, CurrentMap, ref blockedBy) == -1)
+                            {
+                                tmpY--;
+                                tmpX--;
+                                Dir = 4;
+                                IsMoving = true;
+                                OffsetY = Options.TileHeight;
+                                OffsetX = Options.TileWidth;
+                            }
+                            break;
+                        case 5: // NE
+                           
+                            if (IsTileBlocked(X + 1, Y - 1, Z, CurrentMap, ref blockedBy) == -1)
+                            {
+                                tmpY--;
+                                tmpX++;
+                                Dir = 5;
+                                IsMoving = true;
+                                OffsetY = Options.TileHeight;
+                                OffsetX = -Options.TileWidth;
+                            }
+                            break;
+                        case 6: // SW
+                           
+                            if (IsTileBlocked(X - 1, Y + 1, Z, CurrentMap, ref blockedBy) == -1)
+                            {
+                                tmpY++;
+                                tmpX--;
+                                Dir = 6;
+                                IsMoving = true;
+                                OffsetY = -Options.TileHeight;
+                                OffsetX = Options.TileWidth;
+                            }
+                            break;
+                        case 7: // SE
+                            
+                            if (IsTileBlocked(X + 1, Y + 1, Z, CurrentMap, ref blockedBy) == -1)
+                            {
+                                tmpY++;
+                                tmpX++;
+                                Dir = 7;
+                                IsMoving = true;
+                                OffsetY = -Options.TileHeight;
+                                OffsetX = -Options.TileWidth;
+                            }
                             break;
                     }
 
@@ -1474,7 +1718,7 @@ namespace Intersect.Client.Entities
                     {
                         if (MoveDir != Dir)
                         {
-                            Dir = (byte) MoveDir;
+                            Dir = (byte)MoveDir;
                             PacketSender.SendDirection(Dir);
                         }
 
@@ -1775,7 +2019,7 @@ namespace Intersect.Client.Entities
                     continue;
                 }
 
-                if (!en.Value.IsStealthed() || Globals.Me.IsInMyParty(en.Value))
+                if (!en.Value.IsStealthed() || en.Value is Player player && Globals.Me.IsInMyParty(player))
                 {
                     if (en.Value.GetType() != typeof(Projectile) && en.Value.GetType() != typeof(Resource))
                     {
@@ -1803,7 +2047,7 @@ namespace Intersect.Client.Entities
 
                     if (en.Value.CurrentMap == eventMap.Id &&
                         !((Event) en.Value).DisablePreview &&
-                        (!en.Value.IsStealthed() || Globals.Me.IsInMyParty(en.Value)))
+                        (!en.Value.IsStealthed() || en.Value is Player player && Globals.Me.IsInMyParty(player)))
                     {
                         if (TargetType == 1 && TargetIndex == en.Value.Id)
                         {
@@ -1870,6 +2114,123 @@ namespace Intersect.Client.Entities
                         break;
                     }
                 }
+            }
+        }
+
+        public void LoadCustomSpriteLayerAnimationTextures(string tex, CustomSpriteLayers layer, GameContentManager.TextureType textype)
+        {
+            var file = System.IO.Path.GetFileNameWithoutExtension(tex);
+            var ext = System.IO.Path.GetExtension(tex);
+
+            foreach (var anim in Enum.GetValues(typeof(SpriteAnimations)))
+            {
+                CustomSpriteLayersAnimationTexture[(SpriteAnimations)anim][(int)layer] = Globals.ContentManager.GetTexture(textype, $@"{file}_{anim}{ext}");
+            }
+        }
+
+        public virtual void DrawCustomSpriteLayer(CustomSpriteLayers layer, GameContentManager.TextureType textype, int alpha)
+        {
+            var map = MapInstance.Get(CurrentMap);
+            if (map == null)
+            {
+                return;
+            }
+
+            if (CustomSpriteLayersAnimationTexture[SpriteAnimation][(int)layer] == null && CustomSpriteLayersTexture[(int)layer] == null) 
+            {
+                return;
+            }
+
+            var srcRectangle = new FloatRect();
+            var destRectangle = new FloatRect();
+            var d = 0;
+
+            var texture = CustomSpriteLayersAnimationTexture[SpriteAnimation][(int)layer] ?? CustomSpriteLayersTexture[(int)layer];
+
+            if (texture != null)
+            {
+                if (texture.GetHeight() / 4 > Options.TileHeight)
+                {
+                    destRectangle.X = map.GetX() + X * Options.TileWidth + OffsetX + Options.TileWidth / 2;
+                    destRectangle.Y = GetCenterPos().Y - texture.GetHeight() / 8;
+                }
+                else
+                {
+                    destRectangle.X = map.GetX() + X * Options.TileWidth + OffsetX + Options.TileWidth / 2;
+                    destRectangle.Y = map.GetY() + Y * Options.TileHeight + OffsetY;
+                }
+
+                destRectangle.X -= texture.GetWidth() / 8;
+                switch (Dir)
+                {
+                    case 0:
+                        d = 3;
+
+                        break;
+                    case 1:
+                        d = 0;
+
+                        break;
+                    case 2:
+                        d = 1;
+
+                        break;
+                    case 3:
+                        d = 2;
+
+                        break;
+                    default:
+                        Dir = 0;
+                        d = 3;
+
+                        break;
+                }
+
+                destRectangle.X = (int)Math.Ceiling(destRectangle.X);
+                destRectangle.Y = (int)Math.Ceiling(destRectangle.Y);
+                if (Options.AnimatedSprites.Contains(CustomSpriteLayers[(int)layer].ToLower()))
+                {
+                    srcRectangle = new FloatRect(
+                        AnimationFrame * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
+                        (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                    );
+                }
+                else
+                {
+                    if (SpriteAnimation == SpriteAnimations.Normal)
+                    {
+                        var attackTime = CalculateAttackTime();
+                        if (AttackTimer - CalculateAttackTime() / 2 > Globals.System.GetTimeMs() || Blocking)
+                        {
+                            srcRectangle = new FloatRect(
+                                3 * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
+                                (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                            );
+                        }
+                        else
+                        {
+                            //Restore Original Attacking/Blocking Code
+                            srcRectangle = new FloatRect(
+                                WalkFrame * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
+                                (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                            );
+                        }
+                    }
+                    else
+                    {
+                        srcRectangle = new FloatRect(
+                            SpriteFrame * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
+                            (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                        );
+                    }
+                }
+
+                destRectangle.Width = srcRectangle.Width;
+                destRectangle.Height = srcRectangle.Height;
+
+                Graphics.DrawGameTexture(
+                            texture, srcRectangle, destRectangle, new Color(alpha, 255, 255, 255)
+                        );
             }
         }
 

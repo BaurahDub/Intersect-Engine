@@ -59,8 +59,6 @@ namespace Intersect.Server.Entities
 
         #endregion
 
-        public Player() { }
-
         public static int OnlineCount => OnlinePlayers.Count;
 
         [JsonProperty("MaxVitals"), NotMapped]
@@ -71,8 +69,24 @@ namespace Intersect.Server.Entities
 
         public Gender Gender { get; set; }
 
-        public long Exp { get; set; }
+        public Factions Faction { get; set; }
 
+        [NotMapped]
+        public string[] CustomSpriteLayers { get; set; } = new string[(int)Enums.CustomSpriteLayers.CustomCount];
+
+        [Column("CustomSpriteLayers"), JsonIgnore]
+        public string CustomSpriteLayersJson
+        {
+            get => DatabaseUtils.SaveStringArray(CustomSpriteLayers, (int)Enums.CustomSpriteLayers.CustomCount);
+            set => CustomSpriteLayers = DatabaseUtils.LoadStringArray(value, (int)Enums.CustomSpriteLayers.CustomCount);
+        }
+
+        public long Exp { get; set; }
+        public long FarmingExp { get; set; }
+        public long MiningExp { get; set; }
+        public long FishingExp { get; set; }
+        public long WoodExp { get; set; }
+        public long FactionExp { get; set; }
         public int StatPoints { get; set; }
 
         [Column("Equipment"), JsonIgnore]
@@ -112,6 +126,19 @@ namespace Intersect.Server.Entities
 
         [NotMapped]
         public long ExperienceToNextLevel => GetExperienceToNextLevel(Level);
+
+        [NotMapped]
+        public long ExperienceToFarmingNextLevel => GetExperienceToFarmingNextLevel(FarmingLevel);
+
+        [NotMapped]
+        public long ExperienceToMiningNextLevel => GetExperienceToMiningNextLevel(MiningLevel);
+        [NotMapped]
+        public long ExperienceToFishingNextLevel => GetExperienceToFishingNextLevel(FishingLevel);
+        [NotMapped]
+        public long ExperienceToWoodNextLevel => GetExperienceToWoodNextLevel(WoodLevel);
+
+        [NotMapped]
+        public long ExperienceToFactionNextLevel => GetExperienceToFactionNextLevel(FactionLv);
 
         public static Player FindOnline(Guid id)
         {
@@ -157,6 +184,81 @@ namespace Intersect.Server.Entities
             return classBase?.ExperienceToNextLevel(level) ?? ClassBase.DEFAULT_BASE_EXPERIENCE;
         }
 
+        private long GetExperienceToFarmingNextLevel(int FarmingLevel)
+        {
+            if (FarmingLevel >= Options.MaxLevel)
+            {
+                return -1;
+            }
+
+            var skillBase = 8;
+            var Gain = 1.8;
+            var level = FarmingLevel;
+
+
+           // return (long)Math.Floor(skillBase + ((4*(Math.Pow(level - 1, Gain))) / 5));
+            return (long)Math.Floor(skillBase+(skillBase / 3) * (Math.Pow(level, Gain) + (6 * Math.Pow((level), Gain)) -2 * ((level) -3)));
+        }
+
+        private long GetExperienceToMiningNextLevel(int MiningLevel)
+        {
+            if (MiningLevel >= Options.MaxLevel)
+            {
+                return -1;
+            }
+
+            var skillBase = 8;
+            var Gain = 1.8;
+            var level = MiningLevel;
+
+
+            return (long)Math.Floor(skillBase + (skillBase / 3) * (Math.Pow(level, Gain) + (6 * Math.Pow((level), Gain)) - 2 * ((level) - 3)));
+        }
+
+        private long GetExperienceToFishingNextLevel(int FishingLevel)
+        {
+            if (FishingLevel >= Options.MaxLevel)
+            {
+                return -1;
+            }
+
+            var skillBase = 8;
+            var Gain = 1.8;
+            var level = FishingLevel;
+
+
+            return (long)Math.Floor(skillBase + (skillBase / 3) * (Math.Pow(level, Gain) + (6 * Math.Pow((level), Gain)) - 2 * ((level) - 3)));
+        }
+
+        private long GetExperienceToWoodNextLevel(int WoodLevel)
+        {
+            if (WoodLevel >= Options.MaxLevel)
+            {
+                return -1;
+            }
+
+            var skillBase = 8;
+            var Gain = 1.8;
+            var level = WoodLevel;
+
+
+            return (long)Math.Floor(skillBase + (skillBase / 3) * (Math.Pow(level, Gain) + (6 * Math.Pow((level), Gain)) - 2 * ((level) - 3)));
+        }
+
+        private long GetExperienceToFactionNextLevel(int FactionLevel)
+        {
+            if (FactionLevel >= 10)
+            {
+                return -1;
+            }
+
+            var Factionpoint = 7;
+            var Gain = 1.5;
+            var level = FactionLevel;
+
+
+            return (long)Math.Floor(Factionpoint + (Factionpoint / 3) * (Math.Pow(level, Gain) + (6 * Math.Pow((level), Gain)) - 2 * ((level) - 3)));
+        }
         public void SetOnline()
         {
             IsDisposed = false;
@@ -269,6 +371,7 @@ namespace Intersect.Server.Entities
             QuestOffers.Clear();
             CraftingTableId = Guid.Empty;
             CraftId = Guid.Empty;
+            CraftRequestId = Guid.Empty;
             CraftTimer = 0;
             PartyRequester = null;
             PartyRequests.Clear();
@@ -332,7 +435,99 @@ namespace Intersect.Server.Entities
                     return;
                 }
             }
+            if (CraftRequestId != Guid.Empty && CraftingTableId != Guid.Empty)
+            {
+                if (craftReqsMet(CraftRequestId))
+                {
+                    var b = CraftingTableBase.Get(CraftingTableId);
+                    if (b.Crafts.Contains(CraftRequestId))
+                    {
+                        if (CraftTimer + CraftBase.Get(CraftRequestId).Time < timeMs)
+                        {
+                            if (CraftingTableId != Guid.Empty)
+                            {
+                                var invbackup = new List<Item>();
+                                foreach (var item in Items)
+                                {
+                                    invbackup.Add(item.Clone());
+                                }
 
+                                //Quickly Look through the inventory and create a catalog of what items we have, and how many
+                                var itemdict = new Dictionary<Guid, int>();
+                                foreach (var item in Items)
+                                {
+                                    if (item != null)
+                                    {
+                                        if (itemdict.ContainsKey(item.ItemId))
+                                        {
+                                            itemdict[item.ItemId] += item.Quantity;
+                                        }
+                                        else
+                                        {
+                                            itemdict.Add(item.ItemId, item.Quantity);
+                                        }
+                                    }
+                                }
+
+                                //Check the player actually has the items
+                                foreach (var c in CraftBase.Get(CraftRequestId).Ingredients)
+                                {
+                                    if (itemdict.ContainsKey(c.ItemId))
+                                    {
+                                        if (itemdict[c.ItemId] >= c.Quantity)
+                                        {
+                                            itemdict[c.ItemId] -= c.Quantity;
+                                        }
+                                        else
+                                        {
+                                            PacketSender.SendChatMsg(
+                                            this, Strings.Crafting.noitems.ToString(ItemBase.GetName(CraftBase.Get(CraftRequestId).ItemId)),
+                                            CustomColors.Alerts.Error
+                                            );
+                                            CraftRequestId = Guid.Empty;
+                                            PacketSender.SendStartCraft(this);
+                                            return;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        PacketSender.SendChatMsg(
+                                        this, Strings.Crafting.noitems.ToString(ItemBase.GetName(CraftBase.Get(CraftRequestId).ItemId)),
+                                        CustomColors.Alerts.Error
+                                        );
+                                        CraftRequestId = Guid.Empty;
+                                        PacketSender.SendStartCraft(this);
+                                        return;
+                                    }
+                                }
+                            }
+                            PacketSender.SendStartCraft(this, CraftRequestId);
+                            CraftRequestId = Guid.Empty;
+                        }
+                        else
+                        {
+                            if (!CheckCrafting(CraftRequestId))
+                            {
+                                CraftRequestId = Guid.Empty;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        CraftRequestId = Guid.Empty;
+                    }
+                }
+                else
+                {
+                    PacketSender.SendChatMsg(
+                                    this, Strings.Crafting.reqnotmet.ToString(ItemBase.GetName(CraftBase.Get(CraftRequestId).ItemId)),
+                                    CustomColors.Alerts.Error
+                                    );
+                    CraftRequestId = Guid.Empty;
+                    PacketSender.SendStartCraft(this);
+                    return;
+                }
+            }
             if (CraftingTableId != Guid.Empty && CraftId != Guid.Empty)
             {
                 var b = CraftingTableBase.Get(CraftingTableId);
@@ -552,6 +747,7 @@ namespace Intersect.Server.Entities
 
             var pkt = (PlayerEntityPacket) packet;
             pkt.Gender = Gender;
+            pkt.Faction = Faction;
             pkt.ClassId = ClassId;
 
             if (Power.IsAdmin)
@@ -576,6 +772,9 @@ namespace Intersect.Server.Entities
             {
                 ((PlayerEntityPacket) packet).Equipment =
                     PacketSender.GenerateEquipmentPacket(forPlayer, (Player) this);
+
+                pkt.CustomSpriteLayers =
+                    PacketSender.GenerateCustomSpriteLayersPacket((Player)this);
             }
 
             return pkt;
@@ -711,6 +910,7 @@ namespace Intersect.Server.Entities
             //Must have at least 1 hp and no less than 0 mp
             if (vital == (int) Vitals.Health)
             {
+              
                 classVital = Math.Max(classVital, 1);
             }
             else if (vital == (int) Vitals.Mana)
@@ -752,6 +952,87 @@ namespace Intersect.Server.Entities
             PacketSender.SendExperience(this);
         }
 
+        public void SetFarmingLevel(int Farminglevel, bool resetExperience = false)
+        {
+            if (Farminglevel < 1)
+            {
+                return;
+            }
+
+            FarmingLevel = Math.Min(Options.MaxLevel, Farminglevel);
+            if (resetExperience)
+            {
+                FarmingExp = 0;
+            }
+
+            PacketSender.SendEntityDataToProximity(this);
+            PacketSender.SendFarmingExperience(this);
+        }
+        public void SetMiningLevel(int Mininglevel, bool resetExperience = false)
+        {
+            if (Mininglevel < 1)
+            {
+                return;
+            }
+
+            MiningLevel = Math.Min(Options.MaxLevel, Mininglevel);
+            if (resetExperience)
+            {
+                MiningExp = 0;
+            }
+
+            PacketSender.SendEntityDataToProximity(this);
+            PacketSender.SendMiningExperience(this);
+        }
+        public void SetFishingLevel(int Fishinglevel, bool resetExperience = false)
+        {
+            if (Fishinglevel < 1)
+            {
+                return;
+            }
+
+            FishingLevel = Math.Min(Options.MaxLevel, Fishinglevel);
+            if (resetExperience)
+            {
+                FishingExp = 0;
+            }
+
+            PacketSender.SendEntityDataToProximity(this);
+            PacketSender.SendFishingExperience(this);
+        }
+        public void SetWoodLevel(int Woodlevel, bool resetExperience = false)
+        {
+            if (Woodlevel < 1)
+            {
+                return;
+            }
+
+            WoodLevel = Math.Min(Options.MaxLevel, Woodlevel);
+            if (resetExperience)
+            {
+                WoodExp = 0;
+            }
+
+            PacketSender.SendEntityDataToProximity(this);
+            PacketSender.SendWoodExperience(this);
+        }
+
+        public void SetFactionLevel(int Factionlevel, bool resetExperience = false)
+        {
+            if (Factionlevel < 1)
+            {
+                return;
+            }
+
+            FactionLv = Math.Min(Options.MaxLevel, Factionlevel);
+            if (resetExperience)
+            {
+                FactionExp = 0;
+            }
+
+            PacketSender.SendEntityDataToProximity(this);
+            PacketSender.SendFactionExperience(this);
+        }
         public void LevelUp(bool resetExperience = true, int levels = 1)
         {
             var messages = new List<string>();
@@ -814,9 +1095,114 @@ namespace Intersect.Server.Entities
                 }
             }
         }
+        public void FarmingLevelUp(bool resetExperience = true, int levels = 1)
+        {
+            var messages = new List<string>();
+            if (FarmingLevel < Options.MaxLevel)
+            {
+                for (var i = 0; i < levels; i++)
+                {
+                    SetFarmingLevel(FarmingLevel + 1, resetExperience);    
+                }
+            }
+            PacketSender.SendChatMsg(this, Strings.Player.Farminglevelup.ToString(FarmingLevel), CustomColors.Combat.Skilllevelup, Name);
+            PacketSender.SendActionMsg(this, Strings.Combat.Farminglevelup, CustomColors.Combat.Skilllevelup);
+            foreach (var message in messages)
+            {
+                PacketSender.SendChatMsg(this, message, CustomColors.Alerts.Info, Name);
+            }
+            PacketSender.SendFarmingExperience(this);
+            PacketSender.SendEntityDataToProximity(this);
 
+        }
+
+        public void MiningLevelUp(bool resetExperience = true, int levels = 1)
+        {
+            var messages = new List<string>();
+            if (MiningLevel < Options.MaxLevel)
+            {
+                for (var i = 0; i < levels; i++)
+                {
+                    SetMiningLevel(MiningLevel + 1, resetExperience);
+                }
+            }
+            PacketSender.SendChatMsg(this, Strings.Player.Mininglevelup.ToString(MiningLevel), CustomColors.Combat.Skilllevelup, Name);
+            //PacketSender.SendActionMsg(this, Strings.Combat.levelup, CustomColors.Combat.LevelUp);
+            foreach (var message in messages)
+            {
+                PacketSender.SendChatMsg(this, message, CustomColors.Alerts.Info, Name);
+            }
+            PacketSender.SendMiningExperience(this);
+            PacketSender.SendEntityDataToProximity(this);
+
+        }
+
+        public void FishingLevelUp(bool resetExperience = true, int levels = 1)
+        {
+            var messages = new List<string>();
+            if (FishingLevel < Options.MaxLevel)
+            {
+                for (var i = 0; i < levels; i++)
+                {
+                    SetFishingLevel(FishingLevel + 1, resetExperience);
+                }
+            }
+            PacketSender.SendChatMsg(this, Strings.Player.Fishinglevelup.ToString(FishingLevel), CustomColors.Combat.Skilllevelup, Name);
+            //PacketSender.SendActionMsg(this, Strings.Combat.levelup, CustomColors.Combat.LevelUp);
+            foreach (var message in messages)
+            {
+                PacketSender.SendChatMsg(this, message, CustomColors.Alerts.Info, Name);
+            }
+            PacketSender.SendFishingExperience(this);
+            PacketSender.SendEntityDataToProximity(this);
+
+        }
+
+        public void WoodLevelUp(bool resetExperience = true, int levels = 1)
+        {
+            var messages = new List<string>();
+            if (WoodLevel < Options.MaxLevel)
+            {
+                for (var i = 0; i < levels; i++)
+                {
+                    SetWoodLevel(WoodLevel + 1, resetExperience);
+                }
+            }
+            PacketSender.SendChatMsg(this, Strings.Player.Woodlevelup.ToString(WoodLevel), CustomColors.Combat.Skilllevelup, Name);
+            //PacketSender.SendActionMsg(this, Strings.Combat.levelup, CustomColors.Combat.LevelUp);
+            foreach (var message in messages)
+            {
+                PacketSender.SendChatMsg(this, message, CustomColors.Alerts.Info, Name);
+            }
+            PacketSender.SendWoodExperience(this);
+            PacketSender.SendEntityDataToProximity(this);
+
+        }
+
+        public void FactionLevelUp(bool resetExperience = false, int levels = 1)
+        {
+            var messages = new List<string>();
+            if (FactionLv < 10)
+            {
+                for (var i = 0; i < levels; i++)
+                {
+                    SetFactionLevel(FactionLv + 1, resetExperience);
+                }
+            }
+
+            PacketSender.SendChatMsg(this, Strings.Player.Factionlevelup.ToString(FactionLv), CustomColors.Combat.Skilllevelup, Name);
+            //PacketSender.SendActionMsg(this, Strings.Combat.levelup, CustomColors.Combat.LevelUp);
+            foreach (var message in messages)
+            {
+                PacketSender.SendChatMsg(this, message, CustomColors.Alerts.Info, Name);
+            }
+            PacketSender.SendFactionExperience(this);
+            PacketSender.SendEntityDataToProximity(this);
+
+        }
         public void GiveExperience(long amount)
         {
+           
             Exp += (int) (amount * GetExpMultiplier() / 100);
             if (Exp < 0)
             {
@@ -828,7 +1214,70 @@ namespace Intersect.Server.Entities
                 PacketSender.SendExperience(this);
             }
         }
+        public void GiveFarmingExperience(long amount)
+        {
+            FarmingExp += (int)(amount);
+            if (FarmingExp < 0)
+            {
+                FarmingExp = 0;
+            }
 
+            if (!CheckFarmingLevelUp())
+            {
+                PacketSender.SendFarmingExperience(this);
+            }
+        }
+
+        public void GiveMiningExperience(long amount)
+        {
+            MiningExp += (int)(amount);
+            if (MiningExp < 0)
+            {
+                MiningExp = 0;
+            }
+
+            if (!CheckMiningLevelUp())
+            {
+                PacketSender.SendMiningExperience(this);
+            }
+        }
+        public void GiveFishingExperience(long amount)
+        {
+            FishingExp += (int)(amount);
+            if (FishingExp < 0)
+            {
+                FishingExp = 0;
+            }
+
+            if (!CheckFishingLevelUp())
+            {
+                PacketSender.SendFishingExperience(this);
+            }
+        }
+        public void GiveWoodExperience(long amount)
+        {
+            WoodExp += (int)(amount);
+            if (WoodExp < 0)
+            {
+                WoodExp = 0;
+            }
+
+            if (!CheckWoodLevelUp())
+            {
+                PacketSender.SendWoodExperience(this);
+            }
+        }
+
+        public void GiveFactionExperience(long amount)
+        {
+            FactionExp += (int)(amount);
+            
+
+            if (!CheckFactionLevelUp())
+            {
+                PacketSender.SendFactionExperience(this);
+            }
+        }
         private bool CheckLevelUp()
         {
             var levelCount = 0;
@@ -848,7 +1297,108 @@ namespace Intersect.Server.Entities
 
             return true;
         }
+        private bool CheckFarmingLevelUp()
+        {
+            var levelCount = 0;
+            while (FarmingExp >= GetExperienceToFarmingNextLevel(FarmingLevel + levelCount) &&
+                   GetExperienceToFarmingNextLevel(FarmingLevel + levelCount) > 0)
+            {
+                FarmingExp -= GetExperienceToFarmingNextLevel(FarmingLevel + levelCount);
+                levelCount++;
+            }
 
+            if (levelCount <= 0)
+            {
+                return false;
+            }
+
+            FarmingLevelUp(false, levelCount);
+
+            return true;
+        }
+        private bool CheckMiningLevelUp()
+        {
+            var levelCount = 0;
+            while (MiningExp >= GetExperienceToMiningNextLevel(MiningLevel + levelCount) &&
+                   GetExperienceToMiningNextLevel(MiningLevel + levelCount) > 0)
+            {
+                MiningExp -= GetExperienceToMiningNextLevel(MiningLevel + levelCount);
+                levelCount++;
+            }
+
+            if (levelCount <= 0)
+            {
+                return false;
+            }
+
+            MiningLevelUp(false, levelCount);
+
+            return true;
+        }
+
+        private bool CheckFishingLevelUp()
+        {
+            var levelCount = 0;
+            while (FishingExp >= GetExperienceToFishingNextLevel(FishingLevel + levelCount) &&
+                   GetExperienceToFishingNextLevel(FishingLevel + levelCount) > 0)
+            {
+                FishingExp -= GetExperienceToFishingNextLevel(FishingLevel + levelCount);
+                levelCount++;
+            }
+
+            if (levelCount <= 0)
+            {
+                return false;
+            }
+
+            FishingLevelUp(false, levelCount);
+
+            return true;
+        }
+
+        private bool CheckWoodLevelUp()
+        {
+            var levelCount = 0;
+            while (WoodExp >= GetExperienceToWoodNextLevel(WoodLevel + levelCount) &&
+                   GetExperienceToWoodNextLevel(WoodLevel + levelCount) > 0)
+            {
+                WoodExp -= GetExperienceToWoodNextLevel(WoodLevel + levelCount);
+                levelCount++;
+            }
+
+            if (levelCount <= 0)
+            {
+                return false;
+            }
+
+            WoodLevelUp(false, levelCount);
+
+            return true;
+        }
+
+        private bool CheckFactionLevelUp()
+        {
+            var levelCount = 0;
+            while (FactionExp >= GetExperienceToFactionNextLevel(FactionLv + levelCount) &&
+                   GetExperienceToFactionNextLevel(FactionLv + levelCount) > 0)
+            {
+               // FactionExp -= GetExperienceToFactionNextLevel(FactionLv + levelCount);
+                levelCount++;
+                if (FactionExp < 0)
+                {
+                    levelCount--;
+                }
+            }
+
+            if (levelCount <= 0)
+            {
+                return false;
+            }
+
+            FactionLevelUp(false, levelCount);
+
+            return true;
+        }
         //Combat
         public override void KilledEntity(Entity entity)
         {
@@ -863,15 +1413,17 @@ namespace Intersect.Server.Entities
                     // If in party, split the exp.
                     if (Party != null && Party.Count > 0)
                     {
-                        foreach (var partyMember in Party)
-                        {
-                            //TODO: Only share experience with party members on the 9 surrounding maps....
-                            partyMember.GiveExperience(descriptor.Experience / Party.Count);
+                        var partyMembersInXpRange = Party.Where(partyMember => partyMember.InRangeOf(this, Options.Party.SharedXpRange));
+                        var partyExperience = descriptor.Experience / partyMembersInXpRange.Count();
+                        foreach (var partyMember in partyMembersInXpRange) {
+                            partyMember.GiveExperience(partyExperience);
                             partyMember.UpdateQuestKillTasks(entity);
-                            if (partyEvent != null)
-                            {
-                                if (!(playerEvent != null && partyMember == this))
-                                {
+                        }
+
+                        if (partyEvent != null)
+                        {
+                            foreach (var partyMember in Party) {
+                                if (partyMember.InRangeOf(this, Options.Party.NpcDeathCommonEventStartRange) && !(partyMember == this && playerEvent != null)) {
                                     partyMember.StartCommonEvent(partyEvent);
                                 }
                             }
@@ -993,7 +1545,7 @@ namespace Intersect.Server.Entities
             base.TryAttack(target, projectile, parentSpell, parentItem, projectileDir);
         }
 
-        public override void TryAttack(Entity target)
+        public void TryAttack(Entity target, bool targetOnFocus)
         {
             if (CastTime >= Globals.Timing.TimeMs)
             {
@@ -1007,7 +1559,7 @@ namespace Intersect.Server.Entities
                 return;
             }
 
-            if (!IsFacingTarget(target))
+            if (!targetOnFocus && !IsFacingTarget(target))
             {
                 return;
             }
@@ -1097,9 +1649,9 @@ namespace Intersect.Server.Entities
             {
                 return false;
             }
-
-            //Check if the attacker is stunned or blinded.
-            if (Statuses.Values.ToArray()
+            
+                //Check if the attacker is stunned or blinded.
+                if (Statuses.Values.ToArray()
                 .Any(status => status?.Type == StatusTypes.Stun || status?.Type == StatusTypes.Sleep))
             {
                 return false;
@@ -1353,176 +1905,401 @@ namespace Intersect.Server.Entities
             Warp(mapId, x, y, dir);
         }
 
+        /// <summary>
+        /// Checks whether a player can or can not receive the specified item and its quantity.
+        /// </summary>
+        /// <param name="itemId">The item Id to check if the player can receive.</param>
+        /// <param name="quantity">The amount of this item to check if the player can receive.</param>
+        /// <returns></returns>
+        public bool CanGiveItem(Guid itemId, int quantity) => CanGiveItem(new Item(itemId, quantity));
+
         //Inventory
+        /// <summary>
+        /// Checks whether a player can or can not receive the specified item and its quantity.
+        /// </summary>
+        /// <param name="item">The <see cref="Item"/> to check if this player can receive.</param>
+        /// <returns></returns>
         public bool CanGiveItem(Item item)
         {
-            var itemBase = ItemBase.Get(item.ItemId);
-            if (itemBase != null)
+            if (item.Descriptor != null)
             {
-                if (itemBase.IsStackable)
+                // Is the item stackable?
+                if (item.Descriptor.IsStackable)
                 {
-                    for (var i = 0; i < Options.MaxInvItems; i++)
+                    // Does the user have this item already?
+                    if (FindInventoryItemSlot(item.ItemId) != null)
                     {
-                        if (Items[i].ItemId == item.ItemId)
-                        {
-                            return true;
-                        }
+                        return true;
+                    }
+
+                    // Does the user have a free space?
+                    if (FindOpenInventorySlots().Count >= 1)
+                    {
+                        return true;
                     }
                 }
-
-                //Either a non stacking item, or we couldn't find the item already existing in the players inventory
-                for (var i = 0; i < Options.MaxInvItems; i++)
+                else
                 {
-                    if (Items[i].ItemId == Guid.Empty)
+                    // Not a stacking item, so can we contain the amount we want to give them?
+                    if (FindOpenInventorySlots().Count >= item.Quantity)
                     {
                         return true;
                     }
                 }
             }
 
+            // Nothing matches in here, give up!
             return false;
         }
 
-        public bool TryGiveItem(Guid itemId, int quantity, bool bankOverflow = false, bool sendUpdate = true)
+        /// <summary>
+        /// Checks whether or not a player has enough items in their inventory to be taken.
+        /// </summary>
+        /// <param name="itemId">The ItemId to see if it can be taken away from the player.</param>
+        /// <param name="quantity">The quantity of above item to see if we can take away from the player.</param>
+        /// <returns>Whether or not the item can be taken away from the player in the requested quantity.</returns>
+        public bool CanTakeItem(Guid itemId, int quantity) => FindInventoryItemQuantity(itemId) >= quantity;
+
+        /// <summary>
+        /// Checks whether or not a player has enough items in their inventory to be taken.
+        /// </summary>
+        /// <param name="item">The <see cref="Item"/> to see if it can be taken away from the player.</param>
+        /// <returns>Whether or not the item can be taken away from the player.</returns>
+        public bool CanTakeItem(Item item) => CanTakeItem(item.ItemId, item.Quantity);
+
+        /// <summary>
+        /// Gets the item at <paramref name="slotIndex"/> and stores it in <paramref name="slot"/>.
+        /// </summary>
+        /// <param name="slotIndex">the slot to load the <see cref="Item"/> from</param>
+        /// <param name="slot">the <see cref="Item"/> at <paramref name="slotIndex"/></param>
+        /// <param name="createSlotIfNull">if the slot is in an invalid state (<see langword="null"/>), set it</param>
+        /// <returns>returns <see langword="false"/> if <paramref name="slot"/> is set to <see langword="null"/></returns>
+        [ContractAnnotation(" => true, slot: notnull; createSlotIfNull:false => false, slot: null")]
+        public bool TryGetSlot(int slotIndex, [CanBeNull] out InventorySlot slot, bool createSlotIfNull = false)
         {
-            return TryGiveItem(new Item(itemId, quantity), sendUpdate);
+            // ReSharper disable once AssignNullToNotNullAttribute Justification: slot is never null when this returns true.
+            slot = Items[slotIndex];
+
+            // ReSharper disable once InvertIf
+            if (default == slot && createSlotIfNull)
+            {
+                var createdSlot = new InventorySlot(slotIndex);
+                Items[slotIndex] = createdSlot;
+                slot = createdSlot;
+            }
+
+            return default != slot;
         }
 
-        public bool TryGiveItem(Item item, bool sendUpdate = true)
+        /// <summary>
+        /// Gets the item at <paramref name="slotIndex"/> and stores it in <paramref name="item"/>.
+        /// </summary>
+        /// <param name="slotIndex">the slot to load the <see cref="Item"/> from</param>
+        /// <param name="item">the <see cref="Item"/> at <paramref name="slotIndex"/></param>
+        /// <returns>returns <see langword="false"/> if <paramref name="item"/> is set to <see langword="null"/></returns>
+        [ContractAnnotation("=> true, item: notnull; => false, item: null")]
+        public bool TryGetItemAt(int slotIndex, out Item item)
         {
-            return TryGiveItem(item, false, sendUpdate);
+            TryGetSlot(slotIndex, out var slot);
+            item = slot;
+            return default != item;
         }
 
-        public bool TryGiveItem(Item item, bool bankOverflow, bool sendUpdate)
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Item item) => TryGiveItem(item, ItemHandling.Normal, false, true);
+
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
+        /// <param name="handler">The way to handle handing out this item.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Item item, ItemHandling handler) => TryGiveItem(item, handler, false, true);
+
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
+        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Guid itemId, int quantity) => TryGiveItem(new Item(itemId, quantity), ItemHandling.Normal, false, true);
+
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
+        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
+        /// <param name="handler">The way to handle handing out this item.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Guid itemId, int quantity, ItemHandling handler) => TryGiveItem(new Item(itemId, quantity), handler, false, true);
+
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
+        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
+        /// <param name="handler">The way to handle handing out this item.</param>
+        /// <param name="bankOverflow">Should we allow the items to overflow into the player's bank when their inventory is full.</param>
+        /// <param name="sendUpdate">Should we send an inventory update when we are done changing the player's items.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Guid itemId, int quantity, ItemHandling handler, bool bankOverflow = false, bool sendUpdate = true) => TryGiveItem(new Item(itemId, quantity), handler, bankOverflow, sendUpdate);
+
+        /// <summary>
+        /// Attempts to give the player an item. Returns whether or not it succeeds.
+        /// </summary>
+        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
+        /// <param name="handler">The way to handle handing out this item.</param>
+        /// <param name="bankOverflow">Should we allow the items to overflow into the player's bank when their inventory is full.</param>
+        /// <param name="sendUpdate">Should we send an inventory update when we are done changing the player's items.</param>
+        /// <returns>Whether the player received the item or not.</returns>
+        public bool TryGiveItem(Item item, ItemHandling handler = ItemHandling.Normal, bool bankOverflow = false, bool sendUpdate = true)
         {
-            var itemBase = ItemBase.Get(item.ItemId);
-            if (itemBase == null)
+            // Is this a valid item?
+            if (item.Descriptor == null)
             {
                 return false;
             }
 
-            if (itemBase.IsStackable)
+            // Get this information so we can use it later.
+            var openSlots = FindOpenInventorySlots().Count;
+            var hasItem = FindInventoryItemSlot(item.ItemId) != null;
+            int spawnAmount = 0;
+
+            // How are we going to be handling this?
+            switch (handler)
             {
-                for (var i = 0; i < Options.MaxInvItems; i++)
-                {
-                    var inventorySlot = Items[i];
-
-                    if (inventorySlot != null && inventorySlot.ItemId == item.ItemId)
+                // Handle this item like normal, there's no special rules attached to this method.
+                case ItemHandling.Normal:
+                    if (CanGiveItem(item)) // Can receive item under regular rules.
                     {
-                        inventorySlot.Quantity += item.Quantity;
-
-                        if (sendUpdate)
-                        {
-                            PacketSender.SendInventoryItemUpdate(this, i);
-                        }
-
-                        UpdateGatherItemQuests(item.ItemId);
-
+                        GiveItem(item, sendUpdate);
                         return true;
                     }
+
+                    break;
+                case ItemHandling.Overflow:
+                    if (CanGiveItem(item)) // Can receive item under regular rules.
+                    {
+                        GiveItem(item, sendUpdate);
+                        return true;
+                    }
+                    else if (item.Descriptor.Stackable && openSlots == 0) // Is stackable, but no inventory space.
+                    {
+                        spawnAmount = item.Quantity;
+                    }
+                    else // Time to give them as much as they can take, and spawn the rest on the map!
+                    {
+                        spawnAmount = item.Quantity - openSlots;
+                        if (openSlots > 0)
+                        {
+                            item.Quantity = openSlots;
+                            GiveItem(item, sendUpdate);
+                        }
+                    }
+
+                    // Do we have any items to spawn to the map?
+                    if (spawnAmount > 0)
+                    {
+                        Map.SpawnItem(X, Y, item, spawnAmount, Id);
+                        return true;
+                    }
+
+                    break;
+                case ItemHandling.UpTo:
+                    if (CanGiveItem(item)) // Can receive item under regular rules.
+                    {
+                        GiveItem(item, sendUpdate);
+                        return true;
+                    }
+                    else if (!item.Descriptor.Stackable && openSlots > 0) // Is not stackable, has space for some.
+                    {
+                        item.Quantity = openSlots;
+                        GiveItem(item, sendUpdate);
+                        return true;
+                    }
+
+                    break;
+                    // Did you forget to change this method when you added something? ;)
+                default:
+                    throw new NotImplementedException();
+            }
+
+            return bankOverflow && TryDepositItem(item, sendUpdate);
+        }
+
+
+        /// <summary>
+        /// Gives the player an item. NOTE: This method MAKES ZERO CHECKS to see if this is possible! 
+        /// Use TryGiveItem where possible!
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="sendUpdate"></param>
+        private void GiveItem(Item item, bool sendUpdate)
+        {
+
+            // Decide how we're going to handle this item.
+            var existingSlot = FindInventoryItemSlot(item.Descriptor.Id);
+            var updateSlots = new List<int>();
+            if (item.Descriptor.Stackable && existingSlot != null) // Stackable, but already exists in the inventory.
+            {
+                Items[existingSlot.Slot].Quantity += item.Quantity;
+                updateSlots.Add(existingSlot.Slot);
+            }
+            else if (!item.Descriptor.Stackable && item.Quantity > 1) // Not stackable, but multiple items.
+            {
+                var openSlots = FindOpenInventorySlots();
+                for (var slot = 0; slot < item.Quantity; slot++)
+                {
+                    openSlots[slot].Set(new Item(item.ItemId, 1));
+                    updateSlots.Add(openSlots[slot].Slot);
+                }
+            }
+            else // Hand out without any special treatment. Either a single item or a stackable item we don't have yet.
+            {
+                var newSlot = FindOpenInventorySlot();
+                newSlot.Set(item);
+                updateSlots.Add(newSlot.Slot);
+            }
+
+            // Do we need to update the player's inventory?
+            if (sendUpdate)
+            {
+                foreach (var slot in updateSlots)
+                {
+                    PacketSender.SendInventoryItemUpdate(this, slot);
                 }
             }
 
-            // Either a non stacking item, or we couldn't find the item already existing in the players inventory
+            // Update quests for this item.
+            UpdateGatherItemQuests(item.ItemId);
+            
+        }
+
+        /// <summary>
+        /// Retrieves a list of open inventory slots for this player.
+        /// </summary>
+        /// <returns>A list of <see cref="InventorySlot"/></returns>
+        public List<InventorySlot> FindOpenInventorySlots()
+        {
+            var slots = new List<InventorySlot>();
             for (var i = 0; i < Options.MaxInvItems; i++)
             {
                 var inventorySlot = Items[i];
 
                 if (inventorySlot != null && inventorySlot.ItemId == Guid.Empty)
                 {
-                    inventorySlot.Set(item);
-                    if (sendUpdate)
-                    {
-                        PacketSender.SendInventoryItemUpdate(this, i);
-                    }
-
-                    UpdateGatherItemQuests(item.ItemId);
-
-                    return true;
+                    slots.Add(inventorySlot);
                 }
             }
-
-            return bankOverflow && TryDepositItem(item, sendUpdate);
+            return slots;
         }
 
-        public void SwapItems(int item1, int item2)
+        /// <summary>
+        /// Finds the first open inventory slot this player has.
+        /// </summary>
+        /// <returns>An <see cref="InventorySlot"/> instance, or null if none are found.</returns>
+        public InventorySlot FindOpenInventorySlot() => FindOpenInventorySlots().FirstOrDefault();
+
+        /// <summary>
+        /// Swap items between <paramref name="fromSlotIndex"/> and <paramref name="toSlotIndex"/>.
+        /// </summary>
+        /// <param name="fromSlotIndex">the slot index to swap from</param>
+        /// <param name="toSlotIndex">the slot index to swap to</param>
+        public void SwapItems(int fromSlotIndex, int toSlotIndex)
         {
-            var tmpInstance = Items[item2].Clone();
-            Items[item2].Set(Items[item1]);
-            Items[item1].Set(tmpInstance);
-            PacketSender.SendInventoryItemUpdate(this, item1);
-            PacketSender.SendInventoryItemUpdate(this, item2);
-            EquipmentProcessItemSwap(item1, item2);
+            TryGetSlot(fromSlotIndex, out var fromSlot, true);
+            TryGetSlot(toSlotIndex, out var toSlot, true);
+
+            var toSlotClone = toSlot.Clone();
+            toSlot.Set(fromSlot);
+            fromSlot.Set(toSlotClone);
+
+            PacketSender.SendInventoryItemUpdate(this, fromSlotIndex);
+            PacketSender.SendInventoryItemUpdate(this, toSlotIndex);
+            EquipmentProcessItemSwap(fromSlotIndex, toSlotIndex);
         }
 
-        public void DropItems(int slotIndex, int amount)
+        /// <summary>
+        /// Attempt to drop <paramref name="amount"/> of the item in the slot
+        /// identified by <paramref name="slotIndex"/>, returning false if it
+        /// is unable to drop the item for any reason.
+        /// </summary>
+        /// <param name="slotIndex">the slot to drop from</param>
+        /// <param name="amount">the amount to drop</param>
+        /// <returns>if an item was dropped</returns>
+        public bool TryDropItemFrom(int slotIndex, int amount)
         {
-            var slot = Items[slotIndex];
-            if (slot == null)
+            if (!TryGetItemAt(slotIndex, out var itemInSlot))
             {
-                return;
+                return false;
             }
 
-            amount = Math.Min(amount, slot.Quantity);
-
+            amount = Math.Min(amount, itemInSlot.Quantity);
             if (amount < 1)
             {
                 // Abort if the amount we are trying to drop is below 1.
-                return;
+                return false;
             }
 
             if (Equipment?.Any(equipmentSlotIndex => equipmentSlotIndex == slotIndex) ?? false)
             {
                 PacketSender.SendChatMsg(this, Strings.Items.equipped, CustomColors.Items.Bound);
-
-                return;
+                return false;
             }
 
-            var itemBase = ItemBase.Get(slot.ItemId);
-            if (itemBase == null)
+            var itemDescriptor = itemInSlot.Descriptor;
+            if (itemDescriptor == null)
             {
-                return;
+                return false;
             }
 
-            if (itemBase.Bound)
+            if (itemDescriptor.Bound)
             {
                 PacketSender.SendChatMsg(this, Strings.Items.bound, CustomColors.Items.Bound);
-
-                return;
+                return false;
             }
 
-            if (itemBase.ItemType == ItemTypes.Bag)
+            if (itemInSlot.TryGetBag(out var bag) && !bag.IsEmpty)
             {
-                var bag = DbInterface.GetBag(Items[slotIndex]);
-                if (bag != null && !DbInterface.BagEmpty(bag))
-                {
-                    PacketSender.SendChatMsg(this, Strings.Bags.dropnotempty, CustomColors.Alerts.Error);
-
-                    return;
-                }
+                PacketSender.SendChatMsg(this, Strings.Bags.dropnotempty, CustomColors.Alerts.Error);
+                return false;
             }
 
-            var map = MapInstance.Get(MapId);
+            var map = Map;
             if (map == null)
             {
                 Log.Error($"Could not find map {MapId} for player '{Name}'.");
-
-                return;
+                return false;
             }
 
-            map.SpawnItem(X, Y, Items[slotIndex], itemBase.IsStackable ? amount : 1);
+            map.SpawnItem(X, Y, itemInSlot, itemDescriptor.IsStackable ? amount : 1, Id);
 
-            slot.Quantity = Math.Max(0, slot.Quantity - amount);
+            itemInSlot.Quantity = Math.Max(0, itemInSlot.Quantity - amount);
 
-            if (slot.Quantity == 0)
+            if (itemInSlot.Quantity == 0)
             {
-                slot.Set(Item.None);
+                itemInSlot.Set(Item.None);
                 EquipmentProcessItemLoss(slotIndex);
             }
 
-            UpdateGatherItemQuests(itemBase.Id);
+            UpdateGatherItemQuests(itemDescriptor.Id);
             PacketSender.SendInventoryItemUpdate(this, slotIndex);
+
+            return true;
         }
+
+        /// <summary>
+        /// Drops <paramref name="amount"/> of the item in the slot identified by <paramref name="slotIndex"/>.
+        /// </summary>
+        /// <param name="slotIndex">the slot to drop from</param>
+        /// <param name="amount">the amount to drop</param>
+        /// <see cref="TryDropItemFrom(int, int)"/>
+        [Obsolete("Use TryDropItemFrom(int, int).")]
+        public void DropItemFrom(int slotIndex, int amount) => TryDropItemFrom(slotIndex, amount);
 
         public void UseItem(int slot, Entity target = null)
         {
@@ -1648,7 +2425,7 @@ namespace Intersect.Server.Entities
                             Die();
                         }
 
-                        TakeItemsBySlot(slot, 1);
+                        TryTakeItem(Items[slot], 1);
 
                         break;
                     case ItemTypes.Equipment:
@@ -1696,7 +2473,7 @@ namespace Intersect.Server.Entities
 
                         if (itemBase.DestroySpell)
                         {
-                            TakeItemsBySlot(slot, 1);
+                            TryTakeItem(Items[slot], 1);
                         }
 
                         break;
@@ -1707,7 +2484,7 @@ namespace Intersect.Server.Entities
                             return;
                         }
 
-                        TakeItemsBySlot(slot, 1);
+                        TryTakeItem(Items[slot], 1);
 
                         break;
                     case ItemTypes.Bag:
@@ -1747,128 +2524,238 @@ namespace Intersect.Server.Entities
             }
         }
 
-        public bool TakeItemsBySlot(int slot, int amount)
+        /// <summary>
+        /// Try to take an item away from the player by slot.
+        /// </summary>
+        /// <param name="slot">The inventory slot to take the item away from.</param>
+        /// <param name="amount">The amount of this item we intend to take away from the player.</param>
+        /// <param name="handler">The method in which we intend to handle taking away the item from our player.</param>
+        /// <param name="sendUpdate">Do we need to send an inventory update after taking away the item.</param>
+        /// <returns></returns>
+        public bool TryTakeItem(InventorySlot slot, int amount, ItemHandling handler = ItemHandling.Normal, bool sendUpdate = true)
         {
-            var returnVal = false;
-            if (slot < 0)
+            if (Items == null || slot == Item.None || slot == null)
             {
                 return false;
             }
 
-            var itemBase = ItemBase.Get(Items[slot].ItemId);
-            if (itemBase != null)
+            // Figure out how many we can take!
+            var toTake = 0;
+            switch (handler)
             {
-                if (itemBase.IsStackable)
-                {
-                    if (amount > Items[slot].Quantity)
+                case ItemHandling.Normal:
+                case ItemHandling.Overflow: // We can't overflow a take command, so process it as if it's a normal one.
+                    if (slot.Quantity < amount) // Cancel out if we don't have enough items to cover for this.
                     {
-                        amount = Items[slot].Quantity;
+                        return false;
                     }
-                    else
-                    {
-                        if (amount == Items[slot].Quantity)
-                        {
-                            Items[slot].Set(Item.None);
-                            EquipmentProcessItemLoss(slot);
-                            returnVal = true;
-                        }
-                        else
-                        {
-                            Items[slot].Quantity -= amount;
-                            returnVal = true;
-                        }
-                    }
-                }
-                else
-                {
-                    Items[slot].Set(Item.None);
-                    EquipmentProcessItemLoss(slot);
-                    returnVal = true;
-                }
 
-                PacketSender.SendInventoryItemUpdate(this, slot);
+                    // We can take all of the items we need!
+                    toTake = amount;
+
+                    break;
+                case ItemHandling.UpTo:
+                    // Can we take all our items or just some?
+                    toTake = slot.Quantity >= amount ? amount : slot.Quantity;
+
+                    break;
+
+                // Did you forget something? ;)
+                default:
+                    throw new NotImplementedException();
             }
 
-            if (returnVal)
+            // Can we actually take any?
+            if (toTake == 0)
             {
-                UpdateGatherItemQuests(itemBase.Id);
+                return false;
             }
 
-            return returnVal;
+            // Figure out what we're dealing with here.
+            var itemDescriptor = ItemBase.Get(slot.ItemId);
+
+            // is this stackable? if so try to take as many as we can each time.
+            if (itemDescriptor.Stackable)
+            {
+                if (slot.Quantity >= toTake)
+                {
+                    TakeItem(slot, toTake, sendUpdate);
+                    toTake = 0;
+                }
+                else // Take away the entire quantity of the item and lower our items that we still need to take!
+                {
+                    toTake -= slot.Quantity;
+                    TakeItem(slot, slot.Quantity, sendUpdate);
+                }
+            }
+            else // Not stackable, so just take one item away.
+            {
+                toTake -= 1;
+                TakeItem(slot, 1, sendUpdate);
+            }
+
+            // Update quest progress and we're done!
+            UpdateGatherItemQuests(slot.ItemId);
+            return true;
+
         }
 
-        public bool TakeItemsById(Guid itemId, int amount)
+        /// <summary>
+        /// Try to take away an item from the player by Id.
+        /// </summary>
+        /// <param name="itemId">The Id of the item we're trying to take away from the player.</param>
+        /// <param name="amount">The amount of this item we intend to take away from the player.</param>
+        /// <param name="handler">The method in which we intend to handle taking away the item from our player.</param>
+        /// <param name="sendUpdate">Do we need to send an inventory update after taking away the item.</param>
+        /// <returns>Whether the item was taken away successfully or not.</returns>
+        public bool TryTakeItem(Guid itemId, int amount, ItemHandling handler = ItemHandling.Normal, bool sendUpdate = true)
         {
-            if (CountItems(itemId) < amount)
-            {
-                return false;
-            }
-
             if (Items == null)
             {
                 return false;
             }
 
-            var invbackup = Items.Select(item => item?.Clone()).ToList();
+            // Figure out how many we can take!
+            var toTake = 0;
+            switch (handler)
+            {
+                case ItemHandling.Normal:
+                case ItemHandling.Overflow: // We can't overflow a take command, so process it as if it's a normal one.
+                    if (!CanTakeItem(itemId, amount)) // Cancel out if we don't have enough items to cover for this.
+                    {
+                        return false;
+                    }
 
-            for (var i = 0; i < Options.MaxInvItems; i++)
+                    // We can take all of the items we need!
+                    toTake = amount;
+                    
+                    break;
+                case ItemHandling.UpTo:
+                    // Can we take all our items or just some?
+                    var itemCount = FindInventoryItemQuantity(itemId);
+                    toTake = itemCount >= amount ? amount : itemCount;
+
+                    break;
+
+                    // Did you forget something? ;)
+                default:
+                    throw new NotImplementedException();
+            }
+
+            // Can we actually take any?
+            if (toTake == 0)
+            {
+                return false;
+            }
+
+            // Figure out what we're dealing with here.
+            var itemDescriptor = ItemBase.Get(itemId);
+
+            // Go through our inventory and take what we need!
+            foreach (var slot in FindInventoryItemSlots(itemId))
+            {
+                // Do we still have items to take? If not leave the loop!
+                if (toTake == 0)
+                {
+                    break;
+                }
+
+                // is this stackable? if so try to take as many as we can each time.
+                if (itemDescriptor.Stackable)
+                {
+                    if (slot.Quantity >= toTake)
+                    {
+                        TakeItem(slot, toTake, sendUpdate);
+                        toTake = 0;
+                    }
+                    else // Take away the entire quantity of the item and lower our items that we still need to take!
+                    {
+                        toTake -= slot.Quantity;
+                        TakeItem(slot, slot.Quantity, sendUpdate);
+                    }
+                }
+                else // Not stackable, so just take one item away.
+                {
+                    toTake -= 1;
+                    TakeItem(slot, 1, sendUpdate);
+                }
+            }
+
+            // Update quest progress and we're done!
+            UpdateGatherItemQuests(itemId);
+            return true;
+        }
+
+        /// <summary>
+        /// Take an item away from the player, or an amount of it if they have more. NOTE: This method MAKES ZERO CHECKS to see if this is possible! 
+        /// Use TryTakeItem where possible!
+        /// </summary>
+        /// <param name="slot"></param>
+        /// <param name="amount"></param>
+        /// <param name="sendUpdate"></param>
+        private void TakeItem(InventorySlot slot, int amount, bool sendUpdate = true)
+        {
+            if (slot.Quantity > amount) // This slot contains more than what we're trying to take away here. Update the quantity.
+            {
+                slot.Quantity -= amount;
+            }
+            else // Take the entire thing away!
+            {
+                slot.Set(Item.None);
+                EquipmentProcessItemLoss(slot.Slot);
+            }
+
+            if (sendUpdate)
+            {
+                PacketSender.SendInventoryItemUpdate(this, slot.Slot);
+            }
+        }
+
+        /// <summary>
+        /// Find the amount of a specific item a player has.
+        /// </summary>
+        /// <param name="itemId">The item Id to look for.</param>
+        /// <returns>The amount of the requested item the player has on them.</returns>
+        public int FindInventoryItemQuantity(Guid itemId)
+        {
+            if (Items == null)
+            {
+                return 0;
+            }
+
+            var itemCount = 0;
+            for (var i = 0; i < Options.MaxInvItems; i++) 
             {
                 var item = Items[i];
-                if (item?.ItemId != itemId)
+                if (item.ItemId == itemId)
                 {
-                    continue;
-                }
-
-                if (item.Quantity <= 1)
-                {
-                    amount -= 1;
-                    Items[i].Set(Item.None);
-                    PacketSender.SendInventoryItemUpdate(this, i);
-                    EquipmentProcessItemLoss(i);
-                    if (amount == 0)
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    if (amount >= item.Quantity)
-                    {
-                        amount -= item.Quantity;
-                        Items[i].Set(Item.None);
-                        PacketSender.SendInventoryItemUpdate(this, i);
-                        EquipmentProcessItemLoss(i);
-                        if (amount == 0)
-                        {
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        item.Quantity -= amount;
-                        PacketSender.SendInventoryItemUpdate(this, i);
-
-                        return true;
-                    }
+                    itemCount = item.Descriptor.Stackable ? itemCount += item.Quantity : itemCount += 1;
                 }
             }
 
-            //Restore Backup
-            for (var i = 0; i < invbackup.Count; i++)
-            {
-                Items[i].Set(invbackup[i]);
-            }
-
-            PacketSender.SendInventory(this);
-
-            return false;
+            return itemCount;
         }
 
-        public int FindItem(Guid itemId, int quantity = 1)
+        /// <summary>
+        /// Finds an inventory slot matching the desired item and quantity.
+        /// </summary>
+        /// <param name="itemId">The item Id to look for.</param>
+        /// <param name="quantity">The quantity of the item to look for.</param>
+        /// <returns>An <see cref="InventorySlot"/> that contains the item, or null if none are found.</returns>
+        public InventorySlot FindInventoryItemSlot(Guid itemId, int quantity = 1) => FindInventoryItemSlots(itemId, quantity).FirstOrDefault();
+
+        /// <summary>
+        /// Finds all inventory slots matching the desired item and quantity.
+        /// </summary>
+        /// <param name="itemId">The item Id to look for.</param>
+        /// <param name="quantity">The quantity of the item to look for.</param>
+        /// <returns>A list of <see cref="InventorySlot"/> containing the requested item.</returns>
+        public List<InventorySlot> FindInventoryItemSlots(Guid itemId, int quantity = 1)
         {
+            var slots = new List<InventorySlot>();
             if (Items == null)
             {
-                return -1;
+                return slots;
             }
 
             for (var i = 0; i < Options.MaxInvItems; i++)
@@ -1881,11 +2768,11 @@ namespace Intersect.Server.Entities
 
                 if (item.Quantity >= quantity)
                 {
-                    return i;
+                    slots.Add(Items[i]);
                 }
             }
 
-            return -1;
+            return slots;
         }
 
         public int CountItems(Guid itemId, bool inInventory = true, bool inBank = false)
@@ -2055,7 +2942,7 @@ namespace Intersect.Server.Entities
                     }
                 }
             }
-
+            //var Wisdom = 1 + ((int)Stats.AbilityPower/100);
             return exp;
         }
 
@@ -2109,14 +2996,16 @@ namespace Intersect.Server.Entities
             var canSellItem = true;
             var rewardItemId = Guid.Empty;
             var rewardItemVal = 0;
-            var sellItemNum = Items[slot].ItemId;
+
+            TryGetSlot(slot, out var itemInSlot, true);
+            var sellItemNum = itemInSlot.ItemId;
             var shop = InShop;
             if (shop != null)
             {
-                var itemBase = ItemBase.Get(Items[slot].ItemId);
-                if (itemBase != null)
+                var itemDescriptor = itemInSlot.Descriptor;
+                if (itemDescriptor != null)
                 {
-                    if (itemBase.Bound)
+                    if (itemDescriptor.Bound)
                     {
                         PacketSender.SendChatMsg(this, Strings.Shops.bound, CustomColors.Items.Bound);
 
@@ -2124,19 +3013,13 @@ namespace Intersect.Server.Entities
                     }
 
                     //Check if this is a bag with items.. if so don't allow sale
-                    if (itemBase.ItemType == ItemTypes.Bag)
+                    if (itemDescriptor.ItemType == ItemTypes.Bag)
                     {
-                        if (Items[slot].Bag == null)
+                        if (itemInSlot.TryGetBag(out var bag))
                         {
-                            Items[slot].Bag = DbInterface.GetBag(Items[slot]);
-                        }
-
-                        if (Items[slot].Bag != null)
-                        {
-                            if (!DbInterface.BagEmpty(Items[slot].Bag))
+                            if (!bag.IsEmpty)
                             {
                                 PacketSender.SendChatMsg(this, Strings.Bags.onlysellempty, CustomColors.Alerts.Error);
-
                                 return;
                             }
                         }
@@ -2173,37 +3056,34 @@ namespace Intersect.Server.Entities
                         else
                         {
                             rewardItemId = shop.DefaultCurrencyId;
-                            rewardItemVal = itemBase.Price;
+                            rewardItemVal = itemDescriptor.Price;
                         }
                     }
 
-                    if (amount >= Items[slot].Quantity)
-                    {
-                        amount = Items[slot].Quantity;
-                    }
+                    amount = Math.Min(itemInSlot.Quantity, amount);
 
-                    if (amount == Items[slot].Quantity)
+                    if (amount == itemInSlot.Quantity)
                     {
-                        //Definitely can get reward.
-                        Items[slot].Set(Item.None);
+                        // Definitely can get reward.
+                        itemInSlot.Set(Item.None);
                         EquipmentProcessItemLoss(slot);
                     }
                     else
                     {
                         //check if can get reward
-                        if (!CanGiveItem(new Item(rewardItemId, rewardItemVal)))
+                        if (!CanGiveItem(rewardItemId, rewardItemVal))
                         {
                             canSellItem = false;
                         }
                         else
                         {
-                            Items[slot].Quantity -= amount;
+                            itemInSlot.Quantity -= amount;
                         }
                     }
 
                     if (canSellItem)
                     {
-                        TryGiveItem(new Item(rewardItemId, rewardItemVal * amount));
+                        TryGiveItem(rewardItemId, rewardItemVal * amount);
                     }
 
                     PacketSender.SendInventoryItemUpdate(this, slot);
@@ -2231,44 +3111,44 @@ namespace Intersect.Server.Entities
                         }
 
                         if (shop.SellingItems[slot].CostItemQuantity == 0 ||
-                            FindItem(
+                            FindInventoryItemSlot(
                                 shop.SellingItems[slot].CostItemId,
                                 shop.SellingItems[slot].CostItemQuantity * buyItemAmt
-                            ) >
-                            -1)
+                            ) !=
+                            null)
                         {
-                            if (CanGiveItem(new Item(buyItemNum, buyItemAmt, false)))
+                            if (CanGiveItem(buyItemNum, buyItemAmt))
                             {
                                 if (shop.SellingItems[slot].CostItemQuantity > 0)
                                 {
-                                    TakeItemsBySlot(
-                                        FindItem(
+                                    TryTakeItem(
+                                        FindInventoryItemSlot(
                                             shop.SellingItems[slot].CostItemId,
                                             shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                         ), shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                     );
                                 }
 
-                                TryGiveItem(new Item(buyItemNum, buyItemAmt, false));
+                                TryGiveItem(buyItemNum, buyItemAmt);
                             }
                             else
                             {
                                 if (shop.SellingItems[slot].CostItemQuantity * buyItemAmt ==
                                     Items[
-                                            FindItem(
+                                            FindInventoryItemSlot(
                                                 shop.SellingItems[slot].CostItemId,
                                                 shop.SellingItems[slot].CostItemQuantity * buyItemAmt
-                                            )]
+                                            ).Slot]
                                         .Quantity)
                                 {
-                                    TakeItemsBySlot(
-                                        FindItem(
+                                    TryTakeItem(
+                                        FindInventoryItemSlot(
                                             shop.SellingItems[slot].CostItemId,
                                             shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                         ), shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                     );
 
-                                    TryGiveItem(new Item(buyItemNum, buyItemAmt));
+                                    TryGiveItem(buyItemNum, buyItemAmt);
                                 }
                                 else
                                 {
@@ -2312,7 +3192,17 @@ namespace Intersect.Server.Entities
                 PacketSender.SendCloseCraftingTable(this);
             }
         }
-
+        public bool craftReqsMet(Guid id)
+        {
+            if (!Conditions.MeetsConditionLists(CraftBase.Get(id).CraftRequirements, this, null))
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
         //Craft a new item
         public void CraftItem(Guid id)
         {
@@ -2368,7 +3258,7 @@ namespace Intersect.Server.Entities
                 //Take the items
                 foreach (var c in CraftBase.Get(id).Ingredients)
                 {
-                    if (!TakeItemsById(c.ItemId, c.Quantity))
+                    if (!TryTakeItem(c.ItemId, c.Quantity))
                     {
                         for (var i = 0; i < invbackup.Count; i++)
                         {
@@ -2384,36 +3274,59 @@ namespace Intersect.Server.Entities
 
                 //Give them the craft
                 var quantity = Math.Max(CraftBase.Get(id).Quantity, 1);
+                var successrate = Math.Max(CraftBase.Get(id).SuccessRate, 1);
                 var itm = ItemBase.Get(CraftBase.Get(id).ItemId);
                 if (itm == null || !itm.IsStackable)
                 {
                     quantity = 1;
                 }
-
-                if (TryGiveItem(new Item(CraftBase.Get(id).ItemId, quantity)))
+                // Success Rate Check
+                var l = GetLuck() / 10;
+                int rando = Randomization.Next(1, 101);
+                double result = rando - (((double)rando / 100) * l);
+                // Craft item if success rate is higher
+                if (result <= successrate)
                 {
-                    PacketSender.SendChatMsg(
-                        this, Strings.Crafting.crafted.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
-                        CustomColors.Alerts.Success
-                    );
+                    if (TryGiveItem(new Item(CraftBase.Get(id).ItemId, quantity)))
+                    {
+                        PacketSender.SendChatMsg(
+                            this, Strings.Crafting.crafted.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
+                            CustomColors.Alerts.Success
+                        );
+                        // trigger craft event
+                        if (CraftBase.Get(id).CraftEventId != Guid.Empty)
+                        {
+                            StartCommonEvent(EventBase.Get(CraftBase.Get(id).CraftEventId), CommonEventTrigger.None);
+                        }
+
+
+                    }
+                    else
+                    {
+                        for (var i = 0; i < invbackup.Count; i++)
+                        {
+                            Items[i].Set(invbackup[i]);
+                        }
+
+                        PacketSender.SendInventory(this);
+                        PacketSender.SendChatMsg(
+                            this, Strings.Crafting.nospace.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
+                            CustomColors.Alerts.Error
+                        );
+                    }
                 }
+                // Else send an craft failed message
                 else
                 {
-                    for (var i = 0; i < invbackup.Count; i++)
-                    {
-                        Items[i].Set(invbackup[i]);
-                    }
-
-                    PacketSender.SendInventory(this);
                     PacketSender.SendChatMsg(
-                        this, Strings.Crafting.nospace.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
-                        CustomColors.Alerts.Error
-                    );
+                                this, Strings.Crafting.failed.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
+                                CustomColors.Alerts.Error
+                            );
                 }
-
                 CraftId = Guid.Empty;
             }
         }
+
 
         public bool CheckCrafting(Guid id)
         {
@@ -2791,44 +3704,36 @@ namespace Intersect.Server.Entities
             PacketSender.SendBankUpdate(this, item2);
         }
 
-        //Bag
-        public bool OpenBag(Item bagItem, ItemBase itemBase)
+        // TODO: Document this. The TODO on bagItem == null needs to be resolved before this is.
+        public bool OpenBag(Item bagItem, ItemBase itemDescriptor)
         {
             if (IsBusy())
             {
                 return false;
             }
 
-            //Bags will never, ever, be stackable. Going to use the value property for the bag id in the Database.
-            if (bagItem.Bag == null)
+            // TODO: Figure out what to return in the event of a bad argument. An NRE would have happened anyway, and I don't have enough awareness of the bag feature to do this differently.
+            if (bagItem == null)
             {
-                bagItem.Bag = DbInterface.GetBag(bagItem);
-                if (bagItem.Bag == null) //Bag doesnt exist, create it!
-                {
-                    //Create the Bag
-                    var slotCount = itemBase.SlotCount;
-                    if (slotCount < 1)
-                    {
-                        slotCount = 1;
-                    }
+                throw new ArgumentNullException(nameof(bagItem));
+            }
 
-                    bagItem.Bag = new Bag(slotCount);
+            // If the bag does not exist, create one.
+            if (!bagItem.TryGetBag(out var bag))
+            {
+                var slotCount = itemDescriptor.SlotCount;
+                if (slotCount < 1)
+                {
+                    slotCount = 1;
                 }
 
-                bagItem.Bag.Slots = bagItem.Bag.Slots.OrderBy(p => p.Slot).ToList();
-
-                foreach (var itm in bagItem.Bag.Slots)
-                {
-                    if (itm.ItemId != Guid.Empty && ItemBase.Get(itm.ItemId) == null)
-                    {
-                        itm.Set(new Item());
-                    }
-                }
+                bag = new Bag(slotCount);
+                bagItem.Bag = bag;
             }
 
             //Send the bag to the player (this will make it appear on screen)
-            InBag = bagItem.Bag;
-            PacketSender.SendOpenBag(this, bagItem.Bag.SlotCount, bagItem.Bag);
+            InBag = bag;
+            PacketSender.SendOpenBag(this, bag.SlotCount, bag);
 
             return true;
         }
@@ -3201,6 +4106,7 @@ namespace Intersect.Server.Entities
 
         public void OfferItem(int slot, int amount)
         {
+            // TODO: Accessor cleanup
             if (Trading.Counterparty == null)
             {
                 return;
@@ -3234,17 +4140,11 @@ namespace Intersect.Server.Entities
                     //Check if this is a bag with items.. if so don't allow sale
                     if (itemBase.ItemType == ItemTypes.Bag)
                     {
-                        if (Items[slot].Bag == null)
+                        if (Items[slot].TryGetBag(out var bag))
                         {
-                            Items[slot].Bag = DbInterface.GetBag(Items[slot]);
-                        }
-
-                        if (Items[slot].Bag != null)
-                        {
-                            if (!DbInterface.BagEmpty(Items[slot].Bag))
+                            if (!bag.IsEmpty)
                             {
                                 PacketSender.SendChatMsg(this, Strings.Bags.onlytradeempty, CustomColors.Alerts.Error);
-
                                 return;
                             }
                         }
@@ -3425,9 +4325,9 @@ namespace Intersect.Server.Entities
                     continue;
                 }
 
-                if (!TryGiveItem(new Item(offer)))
+                if (!TryGiveItem(offer.ItemId, offer.Quantity))
                 {
-                    MapInstance.Get(MapId)?.SpawnItem(X, Y, offer, offer.Quantity);
+                    MapInstance.Get(MapId)?.SpawnItem(X, Y, offer, offer.Quantity, Id);
                     PacketSender.SendChatMsg(this, Strings.Trading.itemsdropped, CustomColors.Alerts.Error);
                 }
 
@@ -3517,7 +4417,7 @@ namespace Intersect.Server.Entities
                 }
             }
 
-            if (Party.Count < 10)
+            if (Party.Count < Options.Party.MaximumMembers)
             {
                 target.LeaveParty();
                 Party.Add(target);
@@ -3616,6 +4516,7 @@ namespace Intersect.Server.Entities
             return Party.Contains(member);
         }
 
+             
         public void StartTrade(Player target)
         {
             if (target?.Trading.Counterparty != null)
@@ -3838,7 +4739,7 @@ namespace Intersect.Server.Entities
 
                 if (projectileBase.AmmoItemId != Guid.Empty)
                 {
-                    if (FindItem(projectileBase.AmmoItemId, projectileBase.AmmoRequired) == -1)
+                    if (FindInventoryItemSlot(projectileBase.AmmoItemId, projectileBase.AmmoRequired) == null)
                     {
                         PacketSender.SendChatMsg(
                             this, Strings.Items.notenough.ToString(ItemBase.GetName(projectileBase.AmmoItemId)),
@@ -3957,7 +4858,7 @@ namespace Intersect.Server.Entities
                         var projectileBase = spell.Combat.Projectile;
                         if (projectileBase != null && projectileBase.AmmoItemId != Guid.Empty)
                         {
-                            TakeItemsById(projectileBase.AmmoItemId, projectileBase.AmmoRequired);
+                            TryTakeItem(projectileBase.AmmoItemId, projectileBase.AmmoRequired);
                         }
                     }
 
@@ -5268,6 +6169,8 @@ namespace Intersect.Server.Entities
 
         [NotMapped, JsonIgnore] public long CraftTimer = 0;
 
+        [NotMapped, JsonIgnore] public Guid CraftRequestId = Guid.Empty;
+
         #endregion
 
         #region Parties
@@ -5283,6 +6186,8 @@ namespace Intersect.Server.Entities
         [JsonIgnore, NotMapped] public List<Player> Party = new List<Player>();
 
         [JsonIgnore, NotMapped] public Player PartyRequester;
+
+      
 
         [JsonIgnore, NotMapped] public Dictionary<Player, long> PartyRequests = new Dictionary<Player, long>();
 

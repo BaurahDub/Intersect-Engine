@@ -332,6 +332,12 @@ namespace Intersect.GameObjects.Events.Commands
 
         public long Exp { get; set; }
 
+        public long FarmingExp { get; set; }
+        public long FishingExp { get; set; }
+        public long MiningExp { get; set; }
+        public long WoodExp { get; set; }
+        public long FactionXP { get; set; }
+        
     }
 
     public class ChangeLevelCommand : EventCommand
@@ -424,6 +430,11 @@ namespace Intersect.GameObjects.Events.Commands
         public Guid ItemId { get; set; }
 
         public bool Add { get; set; } //If !Add then Remove
+
+        /// <summary>
+        /// Defines how the server is supposed to handle changing the items of this request.
+        /// </summary>
+        public ItemHandling ItemHandling { get; set; } = ItemHandling.Normal;
 
         public int Quantity { get; set; }
 
@@ -518,12 +529,30 @@ namespace Intersect.GameObjects.Events.Commands
 
     }
 
+    public class ChangeHairCommand : EventCommand
+    {
+
+        public override EventCommandType Type { get; } = EventCommandType.ChangeHair;
+
+        public string Hair { get; set; } = "";
+
+    }
+
     public class ChangeGenderCommand : EventCommand
     {
 
         public override EventCommandType Type { get; } = EventCommandType.ChangeGender;
 
         public Gender Gender { get; set; } = Gender.Male;
+
+    }
+
+    public class ChangeFactionCommand : EventCommand
+    {
+
+        public override EventCommandType Type { get; } = EventCommandType.ChangeFaction;
+
+        public Factions Faction { get; set; } = Factions.Neutral;
 
     }
 

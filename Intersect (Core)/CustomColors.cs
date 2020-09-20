@@ -69,6 +69,8 @@ namespace Intersect
 
             public LabelColor Events = new LabelColor(Color.White, Color.Black, new Color(180, 0, 0, 0));
 
+            public LabelColor Class = new LabelColor(new Color(255, 255, 255, 255), Color.Black, new Color(180, 0, 0, 0));
+
             public Dictionary<string, LabelColor> Npcs = new Dictionary<string, LabelColor>()
             {
                 {"Neutral", new LabelColor(new Color(255, 100, 230, 100), Color.Black, new Color(180, 0, 0, 0))},
@@ -177,6 +179,8 @@ namespace Intersect
             public Color Invulnerable = new Color(255, 255, 0, 0);
 
             public Color LevelUp = Color.Cyan;
+
+            public Color Skilllevelup = Color.Red; 
 
             public Color MagicDamage = new Color(255, 255, 0, 255);
 
