@@ -5,7 +5,7 @@ using Intersect.Memory;
 
 using Lidgren.Network;
 
-namespace Intersect.Network.Lidgren
+namespace Intersect.Network
 {
 
     public class LidgrenBuffer : IBuffer

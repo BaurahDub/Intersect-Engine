@@ -61,6 +61,7 @@ namespace Intersect.Client.Interface.Game
                 Active = null;
             }
 
+            ;
             Interface.GameUi.GameCanvas.RemoveChild(mPnl, false);
         }
 

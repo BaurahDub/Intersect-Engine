@@ -125,8 +125,6 @@ namespace Intersect.Configuration
         // TODO: What is this for?
         public List<string> IntroImages { get; set; } = new List<string>();
 
-        public string UpdateUrl { get; set; } = "";
-
         #endregion
 
         #region Serialization Hooks

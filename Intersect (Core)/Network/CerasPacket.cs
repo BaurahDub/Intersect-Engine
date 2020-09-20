@@ -10,15 +10,21 @@ namespace Intersect.Network
 
     public abstract class CerasPacket : IPacket
     {
+
         [NotNull] private static readonly Ceras sCerasInstance = new Ceras(true);
 
-        /// <inheritdoc />
-        public virtual void Dispose()
+        protected CerasPacket()
         {
         }
 
         /// <inheritdoc />
-        [NotNull] public virtual byte[] Data => sCerasInstance.Serialize(this) ?? throw new Exception("Failed to serialize packet.");
+        public virtual void Dispose()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <inheritdoc />
+        public virtual byte[] Data => sCerasInstance.Serialize(this);
 
         public virtual bool IsValid => true;
 

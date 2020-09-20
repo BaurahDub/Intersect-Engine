@@ -204,12 +204,11 @@ namespace Intersect.Server.Database.GameData.Migrations
                     {
                         try
                         {
-                            var newJson = FixJson(property.Value?.ToString());
+                            var newJson = FixJson(property.Value.ToString());
                             property.Value = newJson;
                         }
-                        catch
+                        catch (Exception ex)
                         {
-                            // Not important to abort or log
                         }
                     }
                 }
@@ -696,6 +695,7 @@ namespace Intersect.Server.Database.GameData.Migrations
             }
 
             return mCeras.Compress(Layers);
+            ;
         }
 
         private static byte[] Decompress(byte[] data)

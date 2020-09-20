@@ -59,6 +59,8 @@ namespace Intersect.Server.Entities
 
         #endregion
 
+        public Player() { }
+
         public static int OnlineCount => OnlinePlayers.Count;
 
         [JsonProperty("MaxVitals"), NotMapped]
@@ -68,16 +70,6 @@ namespace Intersect.Server.Entities
         public Guid ClassId { get; set; }
 
         public Gender Gender { get; set; }
-
-        [NotMapped]
-        public string[] CustomSpriteLayers { get; set; } = new string[(int)Enums.CustomSpriteLayers.CustomCount];
-
-        [Column("CustomSpriteLayers"), JsonIgnore]
-        public string CustomSpriteLayersJson
-        {
-            get => DatabaseUtils.SaveStringArray(CustomSpriteLayers, (int)Enums.CustomSpriteLayers.CustomCount);
-            set => CustomSpriteLayers = DatabaseUtils.LoadStringArray(value, (int)Enums.CustomSpriteLayers.CustomCount);
-        }
 
         public long Exp { get; set; }
 
@@ -584,9 +576,6 @@ namespace Intersect.Server.Entities
             {
                 ((PlayerEntityPacket) packet).Equipment =
                     PacketSender.GenerateEquipmentPacket(forPlayer, (Player) this);
-
-                pkt.CustomSpriteLayers =
-                    PacketSender.GenerateCustomSpriteLayersPacket((Player)this);
             }
 
             return pkt;
@@ -874,17 +863,15 @@ namespace Intersect.Server.Entities
                     // If in party, split the exp.
                     if (Party != null && Party.Count > 0)
                     {
-                        var partyMembersInXpRange = Party.Where(partyMember => partyMember.InRangeOf(this, Options.Party.SharedXpRange));
-                        var partyExperience = descriptor.Experience / partyMembersInXpRange.Count();
-                        foreach (var partyMember in partyMembersInXpRange) {
-                            partyMember.GiveExperience(partyExperience);
-                            partyMember.UpdateQuestKillTasks(entity);
-                        }
-
-                        if (partyEvent != null)
+                        foreach (var partyMember in Party)
                         {
-                            foreach (var partyMember in Party) {
-                                if (partyMember.InRangeOf(this, Options.Party.NpcDeathCommonEventStartRange) && !(partyMember == this && playerEvent != null)) {
+                            //TODO: Only share experience with party members on the 9 surrounding maps....
+                            partyMember.GiveExperience(descriptor.Experience / Party.Count);
+                            partyMember.UpdateQuestKillTasks(entity);
+                            if (partyEvent != null)
+                            {
+                                if (!(playerEvent != null && partyMember == this))
+                                {
                                     partyMember.StartCommonEvent(partyEvent);
                                 }
                             }
@@ -1006,7 +993,7 @@ namespace Intersect.Server.Entities
             base.TryAttack(target, projectile, parentSpell, parentItem, projectileDir);
         }
 
-        public void TryAttack(Entity target, bool targetOnFocus)
+        public override void TryAttack(Entity target)
         {
             if (CastTime >= Globals.Timing.TimeMs)
             {
@@ -1020,7 +1007,7 @@ namespace Intersect.Server.Entities
                 return;
             }
 
-            if (!targetOnFocus && !IsFacingTarget(target))
+            if (!IsFacingTarget(target))
             {
                 return;
             }
@@ -1366,401 +1353,176 @@ namespace Intersect.Server.Entities
             Warp(mapId, x, y, dir);
         }
 
-        /// <summary>
-        /// Checks whether a player can or can not receive the specified item and its quantity.
-        /// </summary>
-        /// <param name="itemId">The item Id to check if the player can receive.</param>
-        /// <param name="quantity">The amount of this item to check if the player can receive.</param>
-        /// <returns></returns>
-        public bool CanGiveItem(Guid itemId, int quantity) => CanGiveItem(new Item(itemId, quantity));
-
         //Inventory
-        /// <summary>
-        /// Checks whether a player can or can not receive the specified item and its quantity.
-        /// </summary>
-        /// <param name="item">The <see cref="Item"/> to check if this player can receive.</param>
-        /// <returns></returns>
         public bool CanGiveItem(Item item)
         {
-            if (item.Descriptor != null)
+            var itemBase = ItemBase.Get(item.ItemId);
+            if (itemBase != null)
             {
-                // Is the item stackable?
-                if (item.Descriptor.IsStackable)
+                if (itemBase.IsStackable)
                 {
-                    // Does the user have this item already?
-                    if (FindInventoryItemSlot(item.ItemId) != null)
+                    for (var i = 0; i < Options.MaxInvItems; i++)
                     {
-                        return true;
-                    }
-
-                    // Does the user have a free space?
-                    if (FindOpenInventorySlots().Count >= 1)
-                    {
-                        return true;
+                        if (Items[i].ItemId == item.ItemId)
+                        {
+                            return true;
+                        }
                     }
                 }
-                else
+
+                //Either a non stacking item, or we couldn't find the item already existing in the players inventory
+                for (var i = 0; i < Options.MaxInvItems; i++)
                 {
-                    // Not a stacking item, so can we contain the amount we want to give them?
-                    if (FindOpenInventorySlots().Count >= item.Quantity)
+                    if (Items[i].ItemId == Guid.Empty)
                     {
                         return true;
                     }
                 }
             }
 
-            // Nothing matches in here, give up!
             return false;
         }
 
-        /// <summary>
-        /// Checks whether or not a player has enough items in their inventory to be taken.
-        /// </summary>
-        /// <param name="itemId">The ItemId to see if it can be taken away from the player.</param>
-        /// <param name="quantity">The quantity of above item to see if we can take away from the player.</param>
-        /// <returns>Whether or not the item can be taken away from the player in the requested quantity.</returns>
-        public bool CanTakeItem(Guid itemId, int quantity) => FindInventoryItemQuantity(itemId) >= quantity;
-
-        /// <summary>
-        /// Checks whether or not a player has enough items in their inventory to be taken.
-        /// </summary>
-        /// <param name="item">The <see cref="Item"/> to see if it can be taken away from the player.</param>
-        /// <returns>Whether or not the item can be taken away from the player.</returns>
-        public bool CanTakeItem(Item item) => CanTakeItem(item.ItemId, item.Quantity);
-
-        /// <summary>
-        /// Gets the item at <paramref name="slotIndex"/> and stores it in <paramref name="slot"/>.
-        /// </summary>
-        /// <param name="slotIndex">the slot to load the <see cref="Item"/> from</param>
-        /// <param name="slot">the <see cref="Item"/> at <paramref name="slotIndex"/></param>
-        /// <param name="createSlotIfNull">if the slot is in an invalid state (<see langword="null"/>), set it</param>
-        /// <returns>returns <see langword="false"/> if <paramref name="slot"/> is set to <see langword="null"/></returns>
-        [ContractAnnotation(" => true, slot: notnull; createSlotIfNull:false => false, slot: null")]
-        public bool TryGetSlot(int slotIndex, [CanBeNull] out InventorySlot slot, bool createSlotIfNull = false)
+        public bool TryGiveItem(Guid itemId, int quantity, bool bankOverflow = false, bool sendUpdate = true)
         {
-            // ReSharper disable once AssignNullToNotNullAttribute Justification: slot is never null when this returns true.
-            slot = Items[slotIndex];
-
-            // ReSharper disable once InvertIf
-            if (default == slot && createSlotIfNull)
-            {
-                var createdSlot = new InventorySlot(slotIndex);
-                Items[slotIndex] = createdSlot;
-                slot = createdSlot;
-            }
-
-            return default != slot;
+            return TryGiveItem(new Item(itemId, quantity), sendUpdate);
         }
 
-        /// <summary>
-        /// Gets the item at <paramref name="slotIndex"/> and stores it in <paramref name="item"/>.
-        /// </summary>
-        /// <param name="slotIndex">the slot to load the <see cref="Item"/> from</param>
-        /// <param name="item">the <see cref="Item"/> at <paramref name="slotIndex"/></param>
-        /// <returns>returns <see langword="false"/> if <paramref name="item"/> is set to <see langword="null"/></returns>
-        [ContractAnnotation("=> true, item: notnull; => false, item: null")]
-        public bool TryGetItemAt(int slotIndex, out Item item)
+        public bool TryGiveItem(Item item, bool sendUpdate = true)
         {
-            TryGetSlot(slotIndex, out var slot);
-            item = slot;
-            return default != item;
+            return TryGiveItem(item, false, sendUpdate);
         }
 
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Item item) => TryGiveItem(item, ItemHandling.Normal, false, true);
-
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
-        /// <param name="handler">The way to handle handing out this item.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Item item, ItemHandling handler) => TryGiveItem(item, handler, false, true);
-
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
-        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Guid itemId, int quantity) => TryGiveItem(new Item(itemId, quantity), ItemHandling.Normal, false, true);
-
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
-        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
-        /// <param name="handler">The way to handle handing out this item.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Guid itemId, int quantity, ItemHandling handler) => TryGiveItem(new Item(itemId, quantity), handler, false, true);
-
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="itemId">The Id for the item to be handed out to the player.</param>
-        /// <param name="quantity">The quantity of items to be handed out to the player.</param>
-        /// <param name="handler">The way to handle handing out this item.</param>
-        /// <param name="bankOverflow">Should we allow the items to overflow into the player's bank when their inventory is full.</param>
-        /// <param name="sendUpdate">Should we send an inventory update when we are done changing the player's items.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Guid itemId, int quantity, ItemHandling handler, bool bankOverflow = false, bool sendUpdate = true) => TryGiveItem(new Item(itemId, quantity), handler, bankOverflow, sendUpdate);
-
-        /// <summary>
-        /// Attempts to give the player an item. Returns whether or not it succeeds.
-        /// </summary>
-        /// <param name="item">The <see cref="Item"/> to give to the player.</param>
-        /// <param name="handler">The way to handle handing out this item.</param>
-        /// <param name="bankOverflow">Should we allow the items to overflow into the player's bank when their inventory is full.</param>
-        /// <param name="sendUpdate">Should we send an inventory update when we are done changing the player's items.</param>
-        /// <returns>Whether the player received the item or not.</returns>
-        public bool TryGiveItem(Item item, ItemHandling handler = ItemHandling.Normal, bool bankOverflow = false, bool sendUpdate = true)
+        public bool TryGiveItem(Item item, bool bankOverflow, bool sendUpdate)
         {
-            // Is this a valid item?
-            if (item.Descriptor == null)
+            var itemBase = ItemBase.Get(item.ItemId);
+            if (itemBase == null)
             {
                 return false;
             }
 
-            // Get this information so we can use it later.
-            var openSlots = FindOpenInventorySlots().Count;
-            var hasItem = FindInventoryItemSlot(item.ItemId) != null;
-            int spawnAmount = 0;
-
-            // How are we going to be handling this?
-            switch (handler)
+            if (itemBase.IsStackable)
             {
-                // Handle this item like normal, there's no special rules attached to this method.
-                case ItemHandling.Normal:
-                    if (CanGiveItem(item)) // Can receive item under regular rules.
-                    {
-                        GiveItem(item, sendUpdate);
-                        return true;
-                    }
+                for (var i = 0; i < Options.MaxInvItems; i++)
+                {
+                    var inventorySlot = Items[i];
 
-                    break;
-                case ItemHandling.Overflow:
-                    if (CanGiveItem(item)) // Can receive item under regular rules.
+                    if (inventorySlot != null && inventorySlot.ItemId == item.ItemId)
                     {
-                        GiveItem(item, sendUpdate);
-                        return true;
-                    }
-                    else if (item.Descriptor.Stackable && openSlots == 0) // Is stackable, but no inventory space.
-                    {
-                        spawnAmount = item.Quantity;
-                    }
-                    else // Time to give them as much as they can take, and spawn the rest on the map!
-                    {
-                        spawnAmount = item.Quantity - openSlots;
-                        if (openSlots > 0)
+                        inventorySlot.Quantity += item.Quantity;
+
+                        if (sendUpdate)
                         {
-                            item.Quantity = openSlots;
-                            GiveItem(item, sendUpdate);
+                            PacketSender.SendInventoryItemUpdate(this, i);
                         }
-                    }
 
-                    // Do we have any items to spawn to the map?
-                    if (spawnAmount > 0)
-                    {
-                        Map.SpawnItem(X, Y, item, spawnAmount, Id);
+                        UpdateGatherItemQuests(item.ItemId);
+
                         return true;
                     }
-
-                    break;
-                case ItemHandling.UpTo:
-                    if (CanGiveItem(item)) // Can receive item under regular rules.
-                    {
-                        GiveItem(item, sendUpdate);
-                        return true;
-                    }
-                    else if (!item.Descriptor.Stackable && openSlots > 0) // Is not stackable, has space for some.
-                    {
-                        item.Quantity = openSlots;
-                        GiveItem(item, sendUpdate);
-                        return true;
-                    }
-
-                    break;
-                    // Did you forget to change this method when you added something? ;)
-                default:
-                    throw new NotImplementedException();
-            }
-
-            return bankOverflow && TryDepositItem(item, sendUpdate);
-        }
-
-
-        /// <summary>
-        /// Gives the player an item. NOTE: This method MAKES ZERO CHECKS to see if this is possible! 
-        /// Use TryGiveItem where possible!
-        /// </summary>
-        /// <param name="item"></param>
-        /// <param name="sendUpdate"></param>
-        private void GiveItem(Item item, bool sendUpdate)
-        {
-
-            // Decide how we're going to handle this item.
-            var existingSlot = FindInventoryItemSlot(item.Descriptor.Id);
-            var updateSlots = new List<int>();
-            if (item.Descriptor.Stackable && existingSlot != null) // Stackable, but already exists in the inventory.
-            {
-                Items[existingSlot.Slot].Quantity += item.Quantity;
-                updateSlots.Add(existingSlot.Slot);
-            }
-            else if (!item.Descriptor.Stackable && item.Quantity > 1) // Not stackable, but multiple items.
-            {
-                var openSlots = FindOpenInventorySlots();
-                for (var slot = 0; slot < item.Quantity; slot++)
-                {
-                    openSlots[slot].Set(new Item(item.ItemId, 1));
-                    updateSlots.Add(openSlots[slot].Slot);
-                }
-            }
-            else // Hand out without any special treatment. Either a single item or a stackable item we don't have yet.
-            {
-                var newSlot = FindOpenInventorySlot();
-                newSlot.Set(item);
-                updateSlots.Add(newSlot.Slot);
-            }
-
-            // Do we need to update the player's inventory?
-            if (sendUpdate)
-            {
-                foreach (var slot in updateSlots)
-                {
-                    PacketSender.SendInventoryItemUpdate(this, slot);
                 }
             }
 
-            // Update quests for this item.
-            UpdateGatherItemQuests(item.ItemId);
-            
-        }
-
-        /// <summary>
-        /// Retrieves a list of open inventory slots for this player.
-        /// </summary>
-        /// <returns>A list of <see cref="InventorySlot"/></returns>
-        public List<InventorySlot> FindOpenInventorySlots()
-        {
-            var slots = new List<InventorySlot>();
+            // Either a non stacking item, or we couldn't find the item already existing in the players inventory
             for (var i = 0; i < Options.MaxInvItems; i++)
             {
                 var inventorySlot = Items[i];
 
                 if (inventorySlot != null && inventorySlot.ItemId == Guid.Empty)
                 {
-                    slots.Add(inventorySlot);
+                    inventorySlot.Set(item);
+                    if (sendUpdate)
+                    {
+                        PacketSender.SendInventoryItemUpdate(this, i);
+                    }
+
+                    UpdateGatherItemQuests(item.ItemId);
+
+                    return true;
                 }
             }
-            return slots;
+
+            return bankOverflow && TryDepositItem(item, sendUpdate);
         }
 
-        /// <summary>
-        /// Finds the first open inventory slot this player has.
-        /// </summary>
-        /// <returns>An <see cref="InventorySlot"/> instance, or null if none are found.</returns>
-        public InventorySlot FindOpenInventorySlot() => FindOpenInventorySlots().FirstOrDefault();
-
-        /// <summary>
-        /// Swap items between <paramref name="fromSlotIndex"/> and <paramref name="toSlotIndex"/>.
-        /// </summary>
-        /// <param name="fromSlotIndex">the slot index to swap from</param>
-        /// <param name="toSlotIndex">the slot index to swap to</param>
-        public void SwapItems(int fromSlotIndex, int toSlotIndex)
+        public void SwapItems(int item1, int item2)
         {
-            TryGetSlot(fromSlotIndex, out var fromSlot, true);
-            TryGetSlot(toSlotIndex, out var toSlot, true);
-
-            var toSlotClone = toSlot.Clone();
-            toSlot.Set(fromSlot);
-            fromSlot.Set(toSlotClone);
-
-            PacketSender.SendInventoryItemUpdate(this, fromSlotIndex);
-            PacketSender.SendInventoryItemUpdate(this, toSlotIndex);
-            EquipmentProcessItemSwap(fromSlotIndex, toSlotIndex);
+            var tmpInstance = Items[item2].Clone();
+            Items[item2].Set(Items[item1]);
+            Items[item1].Set(tmpInstance);
+            PacketSender.SendInventoryItemUpdate(this, item1);
+            PacketSender.SendInventoryItemUpdate(this, item2);
+            EquipmentProcessItemSwap(item1, item2);
         }
 
-        /// <summary>
-        /// Attempt to drop <paramref name="amount"/> of the item in the slot
-        /// identified by <paramref name="slotIndex"/>, returning false if it
-        /// is unable to drop the item for any reason.
-        /// </summary>
-        /// <param name="slotIndex">the slot to drop from</param>
-        /// <param name="amount">the amount to drop</param>
-        /// <returns>if an item was dropped</returns>
-        public bool TryDropItemFrom(int slotIndex, int amount)
+        public void DropItems(int slotIndex, int amount)
         {
-            if (!TryGetItemAt(slotIndex, out var itemInSlot))
+            var slot = Items[slotIndex];
+            if (slot == null)
             {
-                return false;
+                return;
             }
 
-            amount = Math.Min(amount, itemInSlot.Quantity);
+            amount = Math.Min(amount, slot.Quantity);
+
             if (amount < 1)
             {
                 // Abort if the amount we are trying to drop is below 1.
-                return false;
+                return;
             }
 
             if (Equipment?.Any(equipmentSlotIndex => equipmentSlotIndex == slotIndex) ?? false)
             {
                 PacketSender.SendChatMsg(this, Strings.Items.equipped, CustomColors.Items.Bound);
-                return false;
+
+                return;
             }
 
-            var itemDescriptor = itemInSlot.Descriptor;
-            if (itemDescriptor == null)
+            var itemBase = ItemBase.Get(slot.ItemId);
+            if (itemBase == null)
             {
-                return false;
+                return;
             }
 
-            if (itemDescriptor.Bound)
+            if (itemBase.Bound)
             {
                 PacketSender.SendChatMsg(this, Strings.Items.bound, CustomColors.Items.Bound);
-                return false;
+
+                return;
             }
 
-            if (itemInSlot.TryGetBag(out var bag) && !bag.IsEmpty)
+            if (itemBase.ItemType == ItemTypes.Bag)
             {
-                PacketSender.SendChatMsg(this, Strings.Bags.dropnotempty, CustomColors.Alerts.Error);
-                return false;
+                var bag = DbInterface.GetBag(Items[slotIndex]);
+                if (bag != null && !DbInterface.BagEmpty(bag))
+                {
+                    PacketSender.SendChatMsg(this, Strings.Bags.dropnotempty, CustomColors.Alerts.Error);
+
+                    return;
+                }
             }
 
-            var map = Map;
+            var map = MapInstance.Get(MapId);
             if (map == null)
             {
                 Log.Error($"Could not find map {MapId} for player '{Name}'.");
-                return false;
+
+                return;
             }
 
-            map.SpawnItem(X, Y, itemInSlot, itemDescriptor.IsStackable ? amount : 1, Id);
+            map.SpawnItem(X, Y, Items[slotIndex], itemBase.IsStackable ? amount : 1);
 
-            itemInSlot.Quantity = Math.Max(0, itemInSlot.Quantity - amount);
+            slot.Quantity = Math.Max(0, slot.Quantity - amount);
 
-            if (itemInSlot.Quantity == 0)
+            if (slot.Quantity == 0)
             {
-                itemInSlot.Set(Item.None);
+                slot.Set(Item.None);
                 EquipmentProcessItemLoss(slotIndex);
             }
 
-            UpdateGatherItemQuests(itemDescriptor.Id);
+            UpdateGatherItemQuests(itemBase.Id);
             PacketSender.SendInventoryItemUpdate(this, slotIndex);
-
-            return true;
         }
-
-        /// <summary>
-        /// Drops <paramref name="amount"/> of the item in the slot identified by <paramref name="slotIndex"/>.
-        /// </summary>
-        /// <param name="slotIndex">the slot to drop from</param>
-        /// <param name="amount">the amount to drop</param>
-        /// <see cref="TryDropItemFrom(int, int)"/>
-        [Obsolete("Use TryDropItemFrom(int, int).")]
-        public void DropItemFrom(int slotIndex, int amount) => TryDropItemFrom(slotIndex, amount);
 
         public void UseItem(int slot, Entity target = null)
         {
@@ -1886,7 +1648,7 @@ namespace Intersect.Server.Entities
                             Die();
                         }
 
-                        TryTakeItem(Items[slot], 1);
+                        TakeItemsBySlot(slot, 1);
 
                         break;
                     case ItemTypes.Equipment:
@@ -1934,7 +1696,7 @@ namespace Intersect.Server.Entities
 
                         if (itemBase.DestroySpell)
                         {
-                            TryTakeItem(Items[slot], 1);
+                            TakeItemsBySlot(slot, 1);
                         }
 
                         break;
@@ -1945,7 +1707,7 @@ namespace Intersect.Server.Entities
                             return;
                         }
 
-                        TryTakeItem(Items[slot], 1);
+                        TakeItemsBySlot(slot, 1);
 
                         break;
                     case ItemTypes.Bag:
@@ -1985,238 +1747,128 @@ namespace Intersect.Server.Entities
             }
         }
 
-        /// <summary>
-        /// Try to take an item away from the player by slot.
-        /// </summary>
-        /// <param name="slot">The inventory slot to take the item away from.</param>
-        /// <param name="amount">The amount of this item we intend to take away from the player.</param>
-        /// <param name="handler">The method in which we intend to handle taking away the item from our player.</param>
-        /// <param name="sendUpdate">Do we need to send an inventory update after taking away the item.</param>
-        /// <returns></returns>
-        public bool TryTakeItem(InventorySlot slot, int amount, ItemHandling handler = ItemHandling.Normal, bool sendUpdate = true)
+        public bool TakeItemsBySlot(int slot, int amount)
         {
-            if (Items == null || slot == Item.None || slot == null)
+            var returnVal = false;
+            if (slot < 0)
             {
                 return false;
             }
 
-            // Figure out how many we can take!
-            var toTake = 0;
-            switch (handler)
+            var itemBase = ItemBase.Get(Items[slot].ItemId);
+            if (itemBase != null)
             {
-                case ItemHandling.Normal:
-                case ItemHandling.Overflow: // We can't overflow a take command, so process it as if it's a normal one.
-                    if (slot.Quantity < amount) // Cancel out if we don't have enough items to cover for this.
+                if (itemBase.IsStackable)
+                {
+                    if (amount > Items[slot].Quantity)
                     {
-                        return false;
+                        amount = Items[slot].Quantity;
                     }
-
-                    // We can take all of the items we need!
-                    toTake = amount;
-
-                    break;
-                case ItemHandling.UpTo:
-                    // Can we take all our items or just some?
-                    toTake = slot.Quantity >= amount ? amount : slot.Quantity;
-
-                    break;
-
-                // Did you forget something? ;)
-                default:
-                    throw new NotImplementedException();
-            }
-
-            // Can we actually take any?
-            if (toTake == 0)
-            {
-                return false;
-            }
-
-            // Figure out what we're dealing with here.
-            var itemDescriptor = ItemBase.Get(slot.ItemId);
-
-            // is this stackable? if so try to take as many as we can each time.
-            if (itemDescriptor.Stackable)
-            {
-                if (slot.Quantity >= toTake)
-                {
-                    TakeItem(slot, toTake, sendUpdate);
-                    toTake = 0;
+                    else
+                    {
+                        if (amount == Items[slot].Quantity)
+                        {
+                            Items[slot].Set(Item.None);
+                            EquipmentProcessItemLoss(slot);
+                            returnVal = true;
+                        }
+                        else
+                        {
+                            Items[slot].Quantity -= amount;
+                            returnVal = true;
+                        }
+                    }
                 }
-                else // Take away the entire quantity of the item and lower our items that we still need to take!
+                else
                 {
-                    toTake -= slot.Quantity;
-                    TakeItem(slot, slot.Quantity, sendUpdate);
+                    Items[slot].Set(Item.None);
+                    EquipmentProcessItemLoss(slot);
+                    returnVal = true;
                 }
+
+                PacketSender.SendInventoryItemUpdate(this, slot);
             }
-            else // Not stackable, so just take one item away.
+
+            if (returnVal)
             {
-                toTake -= 1;
-                TakeItem(slot, 1, sendUpdate);
+                UpdateGatherItemQuests(itemBase.Id);
             }
 
-            // Update quest progress and we're done!
-            UpdateGatherItemQuests(slot.ItemId);
-            return true;
-
+            return returnVal;
         }
 
-        /// <summary>
-        /// Try to take away an item from the player by Id.
-        /// </summary>
-        /// <param name="itemId">The Id of the item we're trying to take away from the player.</param>
-        /// <param name="amount">The amount of this item we intend to take away from the player.</param>
-        /// <param name="handler">The method in which we intend to handle taking away the item from our player.</param>
-        /// <param name="sendUpdate">Do we need to send an inventory update after taking away the item.</param>
-        /// <returns>Whether the item was taken away successfully or not.</returns>
-        public bool TryTakeItem(Guid itemId, int amount, ItemHandling handler = ItemHandling.Normal, bool sendUpdate = true)
+        public bool TakeItemsById(Guid itemId, int amount)
         {
+            if (CountItems(itemId) < amount)
+            {
+                return false;
+            }
+
             if (Items == null)
             {
                 return false;
             }
 
-            // Figure out how many we can take!
-            var toTake = 0;
-            switch (handler)
-            {
-                case ItemHandling.Normal:
-                case ItemHandling.Overflow: // We can't overflow a take command, so process it as if it's a normal one.
-                    if (!CanTakeItem(itemId, amount)) // Cancel out if we don't have enough items to cover for this.
-                    {
-                        return false;
-                    }
+            var invbackup = Items.Select(item => item?.Clone()).ToList();
 
-                    // We can take all of the items we need!
-                    toTake = amount;
-                    
-                    break;
-                case ItemHandling.UpTo:
-                    // Can we take all our items or just some?
-                    var itemCount = FindInventoryItemQuantity(itemId);
-                    toTake = itemCount >= amount ? amount : itemCount;
-
-                    break;
-
-                    // Did you forget something? ;)
-                default:
-                    throw new NotImplementedException();
-            }
-
-            // Can we actually take any?
-            if (toTake == 0)
-            {
-                return false;
-            }
-
-            // Figure out what we're dealing with here.
-            var itemDescriptor = ItemBase.Get(itemId);
-
-            // Go through our inventory and take what we need!
-            foreach (var slot in FindInventoryItemSlots(itemId))
-            {
-                // Do we still have items to take? If not leave the loop!
-                if (toTake == 0)
-                {
-                    break;
-                }
-
-                // is this stackable? if so try to take as many as we can each time.
-                if (itemDescriptor.Stackable)
-                {
-                    if (slot.Quantity >= toTake)
-                    {
-                        TakeItem(slot, toTake, sendUpdate);
-                        toTake = 0;
-                    }
-                    else // Take away the entire quantity of the item and lower our items that we still need to take!
-                    {
-                        toTake -= slot.Quantity;
-                        TakeItem(slot, slot.Quantity, sendUpdate);
-                    }
-                }
-                else // Not stackable, so just take one item away.
-                {
-                    toTake -= 1;
-                    TakeItem(slot, 1, sendUpdate);
-                }
-            }
-
-            // Update quest progress and we're done!
-            UpdateGatherItemQuests(itemId);
-            return true;
-        }
-
-        /// <summary>
-        /// Take an item away from the player, or an amount of it if they have more. NOTE: This method MAKES ZERO CHECKS to see if this is possible! 
-        /// Use TryTakeItem where possible!
-        /// </summary>
-        /// <param name="slot"></param>
-        /// <param name="amount"></param>
-        /// <param name="sendUpdate"></param>
-        private void TakeItem(InventorySlot slot, int amount, bool sendUpdate = true)
-        {
-            if (slot.Quantity > amount) // This slot contains more than what we're trying to take away here. Update the quantity.
-            {
-                slot.Quantity -= amount;
-            }
-            else // Take the entire thing away!
-            {
-                slot.Set(Item.None);
-                EquipmentProcessItemLoss(slot.Slot);
-            }
-
-            if (sendUpdate)
-            {
-                PacketSender.SendInventoryItemUpdate(this, slot.Slot);
-            }
-        }
-
-        /// <summary>
-        /// Find the amount of a specific item a player has.
-        /// </summary>
-        /// <param name="itemId">The item Id to look for.</param>
-        /// <returns>The amount of the requested item the player has on them.</returns>
-        public int FindInventoryItemQuantity(Guid itemId)
-        {
-            if (Items == null)
-            {
-                return 0;
-            }
-
-            var itemCount = 0;
-            for (var i = 0; i < Options.MaxInvItems; i++) 
+            for (var i = 0; i < Options.MaxInvItems; i++)
             {
                 var item = Items[i];
-                if (item.ItemId == itemId)
+                if (item?.ItemId != itemId)
                 {
-                    itemCount = item.Descriptor.Stackable ? itemCount += item.Quantity : itemCount += 1;
+                    continue;
+                }
+
+                if (item.Quantity <= 1)
+                {
+                    amount -= 1;
+                    Items[i].Set(Item.None);
+                    PacketSender.SendInventoryItemUpdate(this, i);
+                    EquipmentProcessItemLoss(i);
+                    if (amount == 0)
+                    {
+                        return true;
+                    }
+                }
+                else
+                {
+                    if (amount >= item.Quantity)
+                    {
+                        amount -= item.Quantity;
+                        Items[i].Set(Item.None);
+                        PacketSender.SendInventoryItemUpdate(this, i);
+                        EquipmentProcessItemLoss(i);
+                        if (amount == 0)
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        item.Quantity -= amount;
+                        PacketSender.SendInventoryItemUpdate(this, i);
+
+                        return true;
+                    }
                 }
             }
 
-            return itemCount;
+            //Restore Backup
+            for (var i = 0; i < invbackup.Count; i++)
+            {
+                Items[i].Set(invbackup[i]);
+            }
+
+            PacketSender.SendInventory(this);
+
+            return false;
         }
 
-        /// <summary>
-        /// Finds an inventory slot matching the desired item and quantity.
-        /// </summary>
-        /// <param name="itemId">The item Id to look for.</param>
-        /// <param name="quantity">The quantity of the item to look for.</param>
-        /// <returns>An <see cref="InventorySlot"/> that contains the item, or null if none are found.</returns>
-        public InventorySlot FindInventoryItemSlot(Guid itemId, int quantity = 1) => FindInventoryItemSlots(itemId, quantity).FirstOrDefault();
-
-        /// <summary>
-        /// Finds all inventory slots matching the desired item and quantity.
-        /// </summary>
-        /// <param name="itemId">The item Id to look for.</param>
-        /// <param name="quantity">The quantity of the item to look for.</param>
-        /// <returns>A list of <see cref="InventorySlot"/> containing the requested item.</returns>
-        public List<InventorySlot> FindInventoryItemSlots(Guid itemId, int quantity = 1)
+        public int FindItem(Guid itemId, int quantity = 1)
         {
-            var slots = new List<InventorySlot>();
             if (Items == null)
             {
-                return slots;
+                return -1;
             }
 
             for (var i = 0; i < Options.MaxInvItems; i++)
@@ -2229,11 +1881,11 @@ namespace Intersect.Server.Entities
 
                 if (item.Quantity >= quantity)
                 {
-                    slots.Add(Items[i]);
+                    return i;
                 }
             }
 
-            return slots;
+            return -1;
         }
 
         public int CountItems(Guid itemId, bool inInventory = true, bool inBank = false)
@@ -2457,16 +2109,14 @@ namespace Intersect.Server.Entities
             var canSellItem = true;
             var rewardItemId = Guid.Empty;
             var rewardItemVal = 0;
-
-            TryGetSlot(slot, out var itemInSlot, true);
-            var sellItemNum = itemInSlot.ItemId;
+            var sellItemNum = Items[slot].ItemId;
             var shop = InShop;
             if (shop != null)
             {
-                var itemDescriptor = itemInSlot.Descriptor;
-                if (itemDescriptor != null)
+                var itemBase = ItemBase.Get(Items[slot].ItemId);
+                if (itemBase != null)
                 {
-                    if (itemDescriptor.Bound)
+                    if (itemBase.Bound)
                     {
                         PacketSender.SendChatMsg(this, Strings.Shops.bound, CustomColors.Items.Bound);
 
@@ -2474,13 +2124,19 @@ namespace Intersect.Server.Entities
                     }
 
                     //Check if this is a bag with items.. if so don't allow sale
-                    if (itemDescriptor.ItemType == ItemTypes.Bag)
+                    if (itemBase.ItemType == ItemTypes.Bag)
                     {
-                        if (itemInSlot.TryGetBag(out var bag))
+                        if (Items[slot].Bag == null)
                         {
-                            if (!bag.IsEmpty)
+                            Items[slot].Bag = DbInterface.GetBag(Items[slot]);
+                        }
+
+                        if (Items[slot].Bag != null)
+                        {
+                            if (!DbInterface.BagEmpty(Items[slot].Bag))
                             {
                                 PacketSender.SendChatMsg(this, Strings.Bags.onlysellempty, CustomColors.Alerts.Error);
+
                                 return;
                             }
                         }
@@ -2517,34 +2173,37 @@ namespace Intersect.Server.Entities
                         else
                         {
                             rewardItemId = shop.DefaultCurrencyId;
-                            rewardItemVal = itemDescriptor.Price;
+                            rewardItemVal = itemBase.Price;
                         }
                     }
 
-                    amount = Math.Min(itemInSlot.Quantity, amount);
-
-                    if (amount == itemInSlot.Quantity)
+                    if (amount >= Items[slot].Quantity)
                     {
-                        // Definitely can get reward.
-                        itemInSlot.Set(Item.None);
+                        amount = Items[slot].Quantity;
+                    }
+
+                    if (amount == Items[slot].Quantity)
+                    {
+                        //Definitely can get reward.
+                        Items[slot].Set(Item.None);
                         EquipmentProcessItemLoss(slot);
                     }
                     else
                     {
                         //check if can get reward
-                        if (!CanGiveItem(rewardItemId, rewardItemVal))
+                        if (!CanGiveItem(new Item(rewardItemId, rewardItemVal)))
                         {
                             canSellItem = false;
                         }
                         else
                         {
-                            itemInSlot.Quantity -= amount;
+                            Items[slot].Quantity -= amount;
                         }
                     }
 
                     if (canSellItem)
                     {
-                        TryGiveItem(rewardItemId, rewardItemVal * amount);
+                        TryGiveItem(new Item(rewardItemId, rewardItemVal * amount));
                     }
 
                     PacketSender.SendInventoryItemUpdate(this, slot);
@@ -2572,44 +2231,44 @@ namespace Intersect.Server.Entities
                         }
 
                         if (shop.SellingItems[slot].CostItemQuantity == 0 ||
-                            FindInventoryItemSlot(
+                            FindItem(
                                 shop.SellingItems[slot].CostItemId,
                                 shop.SellingItems[slot].CostItemQuantity * buyItemAmt
-                            ) !=
-                            null)
+                            ) >
+                            -1)
                         {
-                            if (CanGiveItem(buyItemNum, buyItemAmt))
+                            if (CanGiveItem(new Item(buyItemNum, buyItemAmt, false)))
                             {
                                 if (shop.SellingItems[slot].CostItemQuantity > 0)
                                 {
-                                    TryTakeItem(
-                                        FindInventoryItemSlot(
+                                    TakeItemsBySlot(
+                                        FindItem(
                                             shop.SellingItems[slot].CostItemId,
                                             shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                         ), shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                     );
                                 }
 
-                                TryGiveItem(buyItemNum, buyItemAmt);
+                                TryGiveItem(new Item(buyItemNum, buyItemAmt, false));
                             }
                             else
                             {
                                 if (shop.SellingItems[slot].CostItemQuantity * buyItemAmt ==
                                     Items[
-                                            FindInventoryItemSlot(
+                                            FindItem(
                                                 shop.SellingItems[slot].CostItemId,
                                                 shop.SellingItems[slot].CostItemQuantity * buyItemAmt
-                                            ).Slot]
+                                            )]
                                         .Quantity)
                                 {
-                                    TryTakeItem(
-                                        FindInventoryItemSlot(
+                                    TakeItemsBySlot(
+                                        FindItem(
                                             shop.SellingItems[slot].CostItemId,
                                             shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                         ), shop.SellingItems[slot].CostItemQuantity * buyItemAmt
                                     );
 
-                                    TryGiveItem(buyItemNum, buyItemAmt);
+                                    TryGiveItem(new Item(buyItemNum, buyItemAmt));
                                 }
                                 else
                                 {
@@ -2709,7 +2368,7 @@ namespace Intersect.Server.Entities
                 //Take the items
                 foreach (var c in CraftBase.Get(id).Ingredients)
                 {
-                    if (!TryTakeItem(c.ItemId, c.Quantity))
+                    if (!TakeItemsById(c.ItemId, c.Quantity))
                     {
                         for (var i = 0; i < invbackup.Count; i++)
                         {
@@ -2731,7 +2390,7 @@ namespace Intersect.Server.Entities
                     quantity = 1;
                 }
 
-                if (TryGiveItem(CraftBase.Get(id).ItemId, quantity))
+                if (TryGiveItem(new Item(CraftBase.Get(id).ItemId, quantity)))
                 {
                     PacketSender.SendChatMsg(
                         this, Strings.Crafting.crafted.ToString(ItemBase.GetName(CraftBase.Get(id).ItemId)),
@@ -3132,36 +2791,44 @@ namespace Intersect.Server.Entities
             PacketSender.SendBankUpdate(this, item2);
         }
 
-        // TODO: Document this. The TODO on bagItem == null needs to be resolved before this is.
-        public bool OpenBag(Item bagItem, ItemBase itemDescriptor)
+        //Bag
+        public bool OpenBag(Item bagItem, ItemBase itemBase)
         {
             if (IsBusy())
             {
                 return false;
             }
 
-            // TODO: Figure out what to return in the event of a bad argument. An NRE would have happened anyway, and I don't have enough awareness of the bag feature to do this differently.
-            if (bagItem == null)
+            //Bags will never, ever, be stackable. Going to use the value property for the bag id in the Database.
+            if (bagItem.Bag == null)
             {
-                throw new ArgumentNullException(nameof(bagItem));
-            }
-
-            // If the bag does not exist, create one.
-            if (!bagItem.TryGetBag(out var bag))
-            {
-                var slotCount = itemDescriptor.SlotCount;
-                if (slotCount < 1)
+                bagItem.Bag = DbInterface.GetBag(bagItem);
+                if (bagItem.Bag == null) //Bag doesnt exist, create it!
                 {
-                    slotCount = 1;
+                    //Create the Bag
+                    var slotCount = itemBase.SlotCount;
+                    if (slotCount < 1)
+                    {
+                        slotCount = 1;
+                    }
+
+                    bagItem.Bag = new Bag(slotCount);
                 }
 
-                bag = new Bag(slotCount);
-                bagItem.Bag = bag;
+                bagItem.Bag.Slots = bagItem.Bag.Slots.OrderBy(p => p.Slot).ToList();
+
+                foreach (var itm in bagItem.Bag.Slots)
+                {
+                    if (itm.ItemId != Guid.Empty && ItemBase.Get(itm.ItemId) == null)
+                    {
+                        itm.Set(new Item());
+                    }
+                }
             }
 
             //Send the bag to the player (this will make it appear on screen)
-            InBag = bag;
-            PacketSender.SendOpenBag(this, bag.SlotCount, bag);
+            InBag = bagItem.Bag;
+            PacketSender.SendOpenBag(this, bagItem.Bag.SlotCount, bagItem.Bag);
 
             return true;
         }
@@ -3534,7 +3201,6 @@ namespace Intersect.Server.Entities
 
         public void OfferItem(int slot, int amount)
         {
-            // TODO: Accessor cleanup
             if (Trading.Counterparty == null)
             {
                 return;
@@ -3568,11 +3234,17 @@ namespace Intersect.Server.Entities
                     //Check if this is a bag with items.. if so don't allow sale
                     if (itemBase.ItemType == ItemTypes.Bag)
                     {
-                        if (Items[slot].TryGetBag(out var bag))
+                        if (Items[slot].Bag == null)
                         {
-                            if (!bag.IsEmpty)
+                            Items[slot].Bag = DbInterface.GetBag(Items[slot]);
+                        }
+
+                        if (Items[slot].Bag != null)
+                        {
+                            if (!DbInterface.BagEmpty(Items[slot].Bag))
                             {
                                 PacketSender.SendChatMsg(this, Strings.Bags.onlytradeempty, CustomColors.Alerts.Error);
+
                                 return;
                             }
                         }
@@ -3753,9 +3425,9 @@ namespace Intersect.Server.Entities
                     continue;
                 }
 
-                if (!TryGiveItem(offer.ItemId, offer.Quantity))
+                if (!TryGiveItem(new Item(offer)))
                 {
-                    MapInstance.Get(MapId)?.SpawnItem(X, Y, offer, offer.Quantity, Id);
+                    MapInstance.Get(MapId)?.SpawnItem(X, Y, offer, offer.Quantity);
                     PacketSender.SendChatMsg(this, Strings.Trading.itemsdropped, CustomColors.Alerts.Error);
                 }
 
@@ -3845,7 +3517,7 @@ namespace Intersect.Server.Entities
                 }
             }
 
-            if (Party.Count < Options.Party.MaximumMembers)
+            if (Party.Count < 10)
             {
                 target.LeaveParty();
                 Party.Add(target);
@@ -4166,7 +3838,7 @@ namespace Intersect.Server.Entities
 
                 if (projectileBase.AmmoItemId != Guid.Empty)
                 {
-                    if (FindInventoryItemSlot(projectileBase.AmmoItemId, projectileBase.AmmoRequired) == null)
+                    if (FindItem(projectileBase.AmmoItemId, projectileBase.AmmoRequired) == -1)
                     {
                         PacketSender.SendChatMsg(
                             this, Strings.Items.notenough.ToString(ItemBase.GetName(projectileBase.AmmoItemId)),
@@ -4285,7 +3957,7 @@ namespace Intersect.Server.Entities
                         var projectileBase = spell.Combat.Projectile;
                         if (projectileBase != null && projectileBase.AmmoItemId != Guid.Empty)
                         {
-                            TryTakeItem(projectileBase.AmmoItemId, projectileBase.AmmoRequired);
+                            TakeItemsById(projectileBase.AmmoItemId, projectileBase.AmmoRequired);
                         }
                     }
 

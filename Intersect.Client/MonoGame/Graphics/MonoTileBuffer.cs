@@ -176,11 +176,16 @@ namespace Intersect.Client.Classes.MonoGame.Graphics
 
         public override void Dispose()
         {
-            vertexBuffer?.Dispose();
+            if (vertexBuffer != null)
+            {
+                ;
+            }
+
+            vertexBuffer.Dispose();
             vertexBuffer = null;
-            indexBuffer?.Dispose();
-            indexBuffer = null;
+            indexBuffer.Dispose();
             TileBufferCount--;
+            indexBuffer = null;
             disposed = true;
         }
 

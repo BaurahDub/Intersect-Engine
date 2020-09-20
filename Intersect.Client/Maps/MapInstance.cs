@@ -651,45 +651,19 @@ namespace Intersect.Client.Maps
             //Draw Map Items
             foreach (var item in MapItems)
             {
-                // Are we allowed to see and pick this item up?
-                if (!item.Value.VisibleToAll && item.Value.Owner != Globals.Me.Id && !Globals.Me.IsInMyParty(item.Value.Owner))
-                {
-                    // This item does not apply to us!
-                    continue;
-                }
-
                 var itemBase = ItemBase.Get(item.Value.ItemId);
                 if (itemBase != null)
                 {
                     var itemTex = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Item, itemBase.Icon);
                     if (itemTex != null)
                     {
-                         if (item.Value.hasFallen > 0)
-                         {
-                             Graphics.DrawGameTexture(
-                             itemTex, new FloatRect(0, 0, itemTex.GetWidth(), itemTex.GetHeight()),
-                             new FloatRect(
-                             GetX() + item.Value.X * Options.TileWidth, (GetY() + item.Value.Y * Options.TileHeight) - (item.Value.hasFallen * Options.TileHeight),
-                             Options.TileWidth, Options.TileHeight
-                                                             ), Color.White
-                                                         );
-                             item.Value.hasFallen -= 0.2f;
-                         }
-                         else
-                         {
-                             Graphics.DrawGameTexture(
-                             itemTex, new FloatRect(0, 0, itemTex.GetWidth(), itemTex.GetHeight()),
-                             new FloatRect(
-                             GetX() + item.Value.X * Options.TileWidth, GetY() + item.Value.Y * (Options.TileHeight),
-                             Options.TileWidth, Options.TileHeight), Color.White);
-
-
-                         }
-                       /* Graphics.DrawGameTexture(
+                        Graphics.DrawGameTexture(
                             itemTex, new FloatRect(0, 0, itemTex.GetWidth(), itemTex.GetHeight()),
                             new FloatRect(
-                            GetX() + item.Value.X * Options.TileWidth, GetY() + item.Value.Y * (Options.TileHeight),
-                            Options.TileWidth, Options.TileHeight), Color.White);*/
+                                GetX() + item.Value.X * Options.TileWidth, GetY() + item.Value.Y * Options.TileHeight,
+                                Options.TileWidth, Options.TileHeight
+                            ), Color.White
+                        );
                     }
                 }
             }

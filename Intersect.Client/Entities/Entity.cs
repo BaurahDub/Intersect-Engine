@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Runtime.Remoting.Messaging;
 
 using Intersect.Client.Core;
 using Intersect.Client.Entities.Events;
@@ -36,9 +34,7 @@ namespace Intersect.Client.Entities
 
             Name,
 
-            ChatBubble,
-
-            Class,
+            ChatBubble
 
         }
 
@@ -111,8 +107,6 @@ namespace Intersect.Client.Entities
 
         private byte mDir;
 
-        private byte mDeplDir;
-
         protected bool mDisposed;
 
         private long mLastUpdate;
@@ -153,22 +147,6 @@ namespace Intersect.Client.Entities
         public int Target = -1;
 
         public GameTexture Texture;
-
-        #region "Animation Textures and Timing"
-        public SpriteAnimations SpriteAnimation = SpriteAnimations.Normal;
-
-        public Dictionary<SpriteAnimations,GameTexture> AnimatedTextures = new Dictionary<SpriteAnimations, GameTexture>();
-
-        public int SpriteFrame = 0;
-
-        public long SpriteFrameTimer = -1;
-
-        public long LastActionTime = -1;
-
-        public const long TimeBeforeIdling = 4000;
-
-        public const long IdleFrameDuration = 200;
-        #endregion
 
         public int Type;
 
@@ -226,17 +204,8 @@ namespace Intersect.Client.Entities
         public byte Dir
         {
             get => mDir;
-            set => mDir = (byte)((value + 8) % 8);
+            set => mDir = (byte) ((value + 4) % 4);
         }
-
-        // DeplacementDir is used because I don't know how to set the sprite animation for the diagonal mouvement.
-       /* public byte DeplacementDir
-        {
-            get => mDeplDir;
-            set => mDeplDir = (byte)((value + 8) % 8);
-            // I don't know why there was a +4 % 4 for the Dir field, but I just repeated the same thing here.
-            // I guess it's to be sure the value is in the acceptable range.
-        }*/
 
         public virtual string TransformedSprite
         {
@@ -245,7 +214,6 @@ namespace Intersect.Client.Entities
             {
                 mTransformedSprite = value;
                 Texture = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Entity, mTransformedSprite);
-                LoadAnimationTextures(mTransformedSprite);
                 if (value == "")
                 {
                     MySprite = mMySprite;
@@ -260,7 +228,6 @@ namespace Intersect.Client.Entities
             {
                 mMySprite = value;
                 Texture = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Entity, mMySprite);
-                LoadAnimationTextures(mMySprite);
             }
         }
 
@@ -434,9 +401,7 @@ namespace Intersect.Client.Entities
 
         public virtual bool IsDisposed()
         {
-            bool temp = mDisposed;
-            mDisposed = false;
-            return temp;
+            return mDisposed;
         }
 
         public virtual void Dispose()
@@ -547,18 +512,11 @@ namespace Intersect.Client.Entities
             }
             else if (IsMoving)
             {
-                float deplacementTime = ecTime * Options.TileHeight / GetMovementTime();
-
-                // Dir = facing direction (only 4)
-                // delta offset Must be more than 0 for movements. 0 = slowest
-                // Direction is related to the sprite animation, I don't know how to set a sprite animation for eache direction
-                // so I use DeplacementDir...
                 switch (Dir)
                 {
-                    case 0: // Up
-                        OffsetY -= deplacementTime;
+                    case 0:
+                        OffsetY -= (float) ecTime * (float) Options.TileHeight / GetMovementTime();
                         OffsetX = 0;
-
                         if (OffsetY < 0)
                         {
                             OffsetY = 0;
@@ -566,8 +524,8 @@ namespace Intersect.Client.Entities
 
                         break;
 
-                    case 1: // Down
-                        OffsetY += deplacementTime;
+                    case 1:
+                        OffsetY += (float) ecTime * (float) Options.TileHeight / GetMovementTime();
                         OffsetX = 0;
                         if (OffsetY > 0)
                         {
@@ -576,10 +534,9 @@ namespace Intersect.Client.Entities
 
                         break;
 
-                    case 2: // Left
-                        OffsetX -= deplacementTime;
+                    case 2:
+                        OffsetX -= (float) ecTime * (float) Options.TileHeight / GetMovementTime();
                         OffsetY = 0;
-
                         if (OffsetX < 0)
                         {
                             OffsetX = 0;
@@ -587,53 +544,13 @@ namespace Intersect.Client.Entities
 
                         break;
 
-                    case 3: // Right
-                        OffsetX += deplacementTime;
+                    case 3:
+                        OffsetX += (float) ecTime * (float) Options.TileHeight / GetMovementTime();
                         OffsetY = 0;
                         if (OffsetX > 0)
                         {
                             OffsetX = 0;
                         }
-
-                        break;
-                    case 4: // NW     
-                        OffsetY -= deplacementTime;
-                        OffsetX -= deplacementTime;
-
-                        if (OffsetY < 0)
-                            OffsetY = 0;
-                        if (OffsetX < 0)
-                            OffsetX = 0;
-
-                        break;
-                    case 5: // NE
-                        OffsetY -= deplacementTime;
-                        OffsetX += deplacementTime;
-
-                        if (OffsetY < 0)
-                            OffsetY = 0;
-                        if (OffsetX > 0)
-                            OffsetX = 0;
-
-                        break;
-                    case 6: //SW
-                        OffsetY += deplacementTime;
-                        OffsetX -= deplacementTime;
-
-                        if (OffsetY > 0)
-                            OffsetY = 0;
-                        if (OffsetX < 0)
-                            OffsetX = 0;
-
-                        break;
-                    case 7: // SE
-                        OffsetY += deplacementTime;
-                        OffsetX += deplacementTime;
-
-                        if (OffsetY > 0)
-                            OffsetY = 0;
-                        if (OffsetX > 0)
-                            OffsetX = 0;
 
                         break;
                 }
@@ -784,8 +701,6 @@ namespace Intersect.Client.Entities
 
             mLastUpdate = Globals.System.GetTimeMs();
 
-            UpdateSpriteAnimation();
-
             return true;
         }
 
@@ -909,7 +824,7 @@ namespace Intersect.Client.Entities
                 //If unit is stealthed, don't render unless the entity is the player.
                 if (Status[n].Type == StatusTypes.Stealth)
                 {
-                    if (this != Globals.Me && !(this is Player player && Globals.Me.IsInMyParty(player)))
+                    if (this != Globals.Me && !Globals.Me.IsInMyParty(this))
                     {
                         return;
                     }
@@ -927,15 +842,12 @@ namespace Intersect.Client.Entities
                 MySprite = sprite;
             }
 
-
-            var texture = AnimatedTextures[SpriteAnimation] ?? Texture;
-
-            if (texture != null)
+            if (Texture != null)
             {
-                if (texture.GetHeight() / 4 > Options.TileHeight)
+                if (Texture.GetHeight() / 4 > Options.TileHeight)
                 {
                     destRectangle.X = map.GetX() + X * Options.TileWidth + OffsetX + Options.TileWidth / 2;
-                    destRectangle.Y = GetCenterPos().Y - texture.GetHeight() / 8;
+                    destRectangle.Y = GetCenterPos().Y - Texture.GetHeight() / 8;
                 }
                 else
                 {
@@ -943,7 +855,7 @@ namespace Intersect.Client.Entities
                     destRectangle.Y = map.GetY() + Y * Options.TileHeight + OffsetY;
                 }
 
-                destRectangle.X -= texture.GetWidth() / 8;
+                destRectangle.X -= Texture.GetWidth() / 8;
                 switch (Dir)
                 {
                     case 0:
@@ -962,24 +874,6 @@ namespace Intersect.Client.Entities
                         d = 2;
 
                         break;
-
-                    case 4: // UpLeft
-                        d = 1;
-
-                        break;
-                    case 5: // UpRight
-                        d = 2;
-
-                        break;
-                    case 6: // DownLeft
-                        d = 1;
-
-                        break;
-                    case 7: // DownRight
-                        d = 2;
-
-                        break;
-
                     default:
                         Dir = 0;
                         d = 3;
@@ -987,41 +881,30 @@ namespace Intersect.Client.Entities
                         break;
                 }
 
-                destRectangle.X = (int)Math.Ceiling(destRectangle.X);
-                destRectangle.Y = (int)Math.Ceiling(destRectangle.Y);
+                destRectangle.X = (int) Math.Ceiling(destRectangle.X);
+                destRectangle.Y = (int) Math.Ceiling(destRectangle.Y);
                 if (Options.AnimatedSprites.Contains(sprite.ToLower()))
                 {
                     srcRectangle = new FloatRect(
-                        AnimationFrame * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
-                        (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                        AnimationFrame * (int) Texture.GetWidth() / 4, d * (int) Texture.GetHeight() / 4,
+                        (int) Texture.GetWidth() / 4, (int) Texture.GetHeight() / 4
                     );
                 }
                 else
                 {
-                    if (SpriteAnimation == SpriteAnimations.Normal)
+                    var attackTime = CalculateAttackTime();
+                    if (AttackTimer - CalculateAttackTime() / 2 > Globals.System.GetTimeMs() || Blocking)
                     {
-                        var attackTime = CalculateAttackTime();
-                        if (AttackTimer - CalculateAttackTime() / 2 > Globals.System.GetTimeMs() || Blocking)
-                        {
-                            srcRectangle = new FloatRect(
-                                3 * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
-                                (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
-                            );
-                        }
-                        else
-                        {
-                            //Restore Original Attacking/Blocking Code
-                            srcRectangle = new FloatRect(
-                                WalkFrame * (int) texture.GetWidth() / 4, d * (int) texture.GetHeight() / 4,
-                                (int) texture.GetWidth() / 4, (int) texture.GetHeight() / 4
-                            );
-                        }
+                        srcRectangle = new FloatRect(
+                            3 * (int) Texture.GetWidth() / 4, d * (int) Texture.GetHeight() / 4,
+                            (int) Texture.GetWidth() / 4, (int) Texture.GetHeight() / 4
+                        );
                     }
                     else
                     {
                         srcRectangle = new FloatRect(
-                            SpriteFrame * (int)texture.GetWidth() / 4, d * (int)texture.GetHeight() / 4,
-                            (int)texture.GetWidth() / 4, (int)texture.GetHeight() / 4
+                            WalkFrame * (int) Texture.GetWidth() / 4, d * (int) Texture.GetHeight() / 4,
+                            (int) Texture.GetWidth() / 4, (int) Texture.GetHeight() / 4
                         );
                     }
                 }
@@ -1034,27 +917,17 @@ namespace Intersect.Client.Entities
 
                 WorldPos = destRectangle;
 
-                int pDollIndex = Dir; // Actually it's because the index would've been outside of the bounds
-                if (Dir == 4 || Dir == 6)
-                {
-                    pDollIndex = 2;
-                }
-                else if (Dir == 5 || Dir == 7)
-                {
-                    pDollIndex = 3;
-                }
-
                 //Order the layers of paperdolls and sprites
-                for (var z = 0; z < Options.PaperdollOrder[pDollIndex].Count; z++)
+                for (var z = 0; z < Options.PaperdollOrder[Dir].Count; z++)
                 {
-                    var paperdoll = Options.PaperdollOrder[pDollIndex][z];
+                    var paperdoll = Options.PaperdollOrder[Dir][z];
                     var equipSlot = Options.EquipmentSlots.IndexOf(paperdoll);
 
                     //Check for player
                     if (paperdoll == "Player")
                     {
                         Graphics.DrawGameTexture(
-                            texture, srcRectangle, destRectangle, new Intersect.Color(alpha, 255, 255, 255)
+                            Texture, srcRectangle, destRectangle, new Intersect.Color(alpha, 255, 255, 255)
                         );
                     }
                     else if (equipSlot > -1)
@@ -1091,14 +964,6 @@ namespace Intersect.Client.Entities
                                         DrawEquipment(item.FemalePaperdoll, alpha);
                                     }
                                 }
-                                else
-                                {
-                                    // Render a hairstyle here if we're currently rendering the desired hair slot without any equipment in it.
-                                    if (this is Player && paperdoll == Options.EquipmentSlots[Options.EquipmentSlots.IndexOf(Options.Equipment.HairSlot)])
-                                    {
-                                            ((Player)this).DrawCustomSpriteLayer(CustomSpriteLayers.Hair, GameContentManager.TextureType.Hair, alpha);
-                                    }
-                                }
                             }
                         }
                     }
@@ -1127,18 +992,7 @@ namespace Intersect.Client.Entities
             var srcRectangle = new FloatRect();
             var destRectangle = new FloatRect();
             var d = 0;
-
-            GameTexture paperdollTex = null;
-            var filenameNoExt = Path.GetFileNameWithoutExtension(filename);
-            paperdollTex = Globals.ContentManager.GetTexture(
-                GameContentManager.TextureType.Paperdoll, $"{filenameNoExt}_{SpriteAnimation.ToString()}.png"
-            );
-
-            if (paperdollTex == null)
-            {
-                paperdollTex = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Paperdoll, filename);
-            }
-
+            var paperdollTex = Globals.ContentManager.GetTexture(GameContentManager.TextureType.Paperdoll, filename);
             if (paperdollTex != null)
             {
                 if (paperdollTex.GetHeight() / 4 > Options.TileHeight)
@@ -1173,48 +1027,24 @@ namespace Intersect.Client.Entities
                         break;
                     case 3:
                         d = 2;
-                        break;
-                    case 4:
-                        d = 1;
 
-                        break;
-                    case 5:
-                        d = 2;
-
-                        break;
-                    case 6:
-                        d = 1;
-
-                        break;
-                    case 7:
-                        d = 2;
                         break;
                 }
 
                 destRectangle.X = (int) Math.Ceiling(destRectangle.X);
                 destRectangle.Y = (int) Math.Ceiling(destRectangle.Y);
-                if (SpriteAnimation == SpriteAnimations.Normal)
+                if (AttackTimer - CalculateAttackTime() / 2 > Globals.System.GetTimeMs() || Blocking)
                 {
-                    if (AttackTimer - CalculateAttackTime() / 2 > Globals.System.GetTimeMs() || Blocking)
-                    {
-                        srcRectangle = new FloatRect(
-                            3 * (int)paperdollTex.GetWidth() / 4, d * (int)paperdollTex.GetHeight() / 4,
-                            (int)paperdollTex.GetWidth() / 4, (int)paperdollTex.GetHeight() / 4
-                        );
-                    }
-                    else
-                    {
-                        srcRectangle = new FloatRect(
-                            WalkFrame * (int) paperdollTex.GetWidth() / 4, d * (int) paperdollTex.GetHeight() / 4,
-                            (int) paperdollTex.GetWidth() / 4, (int) paperdollTex.GetHeight() / 4
-                        );
-                    }
+                    srcRectangle = new FloatRect(
+                        3 * (int) paperdollTex.GetWidth() / 4, d * (int) paperdollTex.GetHeight() / 4,
+                        (int) paperdollTex.GetWidth() / 4, (int) paperdollTex.GetHeight() / 4
+                    );
                 }
                 else
                 {
                     srcRectangle = new FloatRect(
-                        SpriteFrame * (int)paperdollTex.GetWidth() / 4, d * (int)paperdollTex.GetHeight() / 4,
-                        (int)paperdollTex.GetWidth() / 4, (int)paperdollTex.GetHeight() / 4
+                        WalkFrame * (int) paperdollTex.GetWidth() / 4, d * (int) paperdollTex.GetHeight() / 4,
+                        (int) paperdollTex.GetWidth() / 4, (int) paperdollTex.GetHeight() / 4
                     );
                 }
 
@@ -1330,7 +1160,7 @@ namespace Intersect.Client.Entities
                 //If unit is stealthed, don't render unless the entity is the player.
                 if (Status[n].Type == StatusTypes.Stealth)
                 {
-                    if (this != Globals.Me && !(this is Player player && Globals.Me.IsInMyParty(player)))
+                    if (this != Globals.Me && !Globals.Me.IsInMyParty(this))
                     {
                         return;
                     }
@@ -1422,7 +1252,7 @@ namespace Intersect.Client.Entities
                 //If unit is stealthed, don't render unless the entity is the player.
                 if (Status[n].Type == StatusTypes.Stealth)
                 {
-                    if (this != Globals.Me && !(this is Player player && Globals.Me.IsInMyParty(player)))
+                    if (this != Globals.Me && !Globals.Me.IsInMyParty(this))
                     {
                         return;
                     }
@@ -1435,28 +1265,7 @@ namespace Intersect.Client.Entities
                 return;
             }
 
-            var displayName = Name;
-            var displayClass = String.Empty;
-            switch (Options.Player.DisplayLevelStyle)
-            {
-                case (int)DisplayLevelStyles.NameLevel:
-                    displayName = Localization.Strings.GameWindow.CharacterName.ToString(Name, Level);
-                    break;
-
-                case (int)DisplayLevelStyles.NameClassLevel:
-                    if (this is Player player)
-                    {
-                        displayClass = Localization.Strings.GameWindow.CharacterClass.ToString(ClassBase.GetName(player.Class), player.Level);
-                    }
-                    break;
-
-                case (int)DisplayLevelStyles.NameOnly:
-                default:
-                    break;
-
-            }
-
-            var textSize = Graphics.Renderer.MeasureText(displayName, Graphics.EntityNameFont, 1);
+            var textSize = Graphics.Renderer.MeasureText(Name, Graphics.EntityNameFont, 1);
 
             var x = (int) Math.Ceiling(GetCenterPos().X);
             var y = GetLabelLocation(LabelType.Name);
@@ -1470,40 +1279,14 @@ namespace Intersect.Client.Entities
             }
 
             Graphics.Renderer.DrawString(
-                displayName, Graphics.EntityNameFont, (int) (x - (int) Math.Ceiling(textSize.X / 2f)), (int) y, 1,
+                Name, Graphics.EntityNameFont, (int) (x - (int) Math.Ceiling(textSize.X / 2f)), (int) y, 1,
                 Color.FromArgb(textColor.ToArgb()), true, null, Color.FromArgb(borderColor.ToArgb())
             );
-
-            // Do we need to render the class data?
-            if (displayClass != String.Empty)
-            {
-                textSize = Graphics.Renderer.MeasureText(displayClass, Graphics.EntityNameFont, 1);
-                textColor = CustomColors.Names.Class.Name;
-                backgroundColor = CustomColors.Names.Class.Background;
-                borderColor = CustomColors.Names.Class.Outline;
-
-                x = (int)Math.Ceiling(GetCenterPos().X);
-                y = GetLabelLocation(LabelType.Class);
-
-                if (backgroundColor != Color.Transparent)
-                {
-                    Graphics.DrawGameTexture(
-                        Graphics.Renderer.GetWhiteTexture(), new FloatRect(0, 0, 1, 1),
-                        new FloatRect(x - textSize.X / 2f - 4, y, textSize.X + 8, textSize.Y), backgroundColor
-                    );
-                }
-
-                Graphics.Renderer.DrawString(
-                    displayClass, Graphics.EntityNameFont, (int)(x - (int)Math.Ceiling(textSize.X / 2f)), (int)y, 1,
-                    Color.FromArgb(textColor.ToArgb()), true, null, Color.FromArgb(borderColor.ToArgb())
-                );
-            }
         }
 
         public float GetLabelLocation(LabelType type)
         {
             var y = GetTopPos() - 4;
-            var nameSize = Graphics.Renderer.MeasureText(Name, Graphics.EntityNameFont, 1);
             switch (type)
             {
                 case LabelType.Header:
@@ -1529,6 +1312,7 @@ namespace Intersect.Client.Entities
                     break;
                 case LabelType.Name:
                     y = GetLabelLocation(LabelType.Footer);
+                    var nameSize = Graphics.Renderer.MeasureText(Name, Graphics.EntityNameFont, 1);
                     if (string.IsNullOrEmpty(FooterLabel.Text))
                     {
                         y -= nameSize.Y - 8;
@@ -1541,11 +1325,6 @@ namespace Intersect.Client.Entities
                     break;
                 case LabelType.ChatBubble:
                     y = GetLabelLocation(LabelType.Header) - 4;
-
-                    break;
-                case LabelType.Class:
-                    nameSize = Graphics.Renderer.MeasureText(Name, Graphics.EntityNameFont, 1);
-                    y = GetLabelLocation(LabelType.Name) - nameSize.Y;
 
                     break;
             }
@@ -1594,7 +1373,7 @@ namespace Intersect.Client.Entities
                 //If unit is stealthed, don't render unless the entity is the player.
                 if (Status[n].Type == StatusTypes.Stealth)
                 {
-                    if (this != Globals.Me && !(this is Player player && Globals.Me.IsInMyParty(player)))
+                    if (this != Globals.Me && !Globals.Me.IsInMyParty(this))
                     {
                         return;
                     }
@@ -1800,134 +1579,10 @@ namespace Intersect.Client.Entities
             Status = Status.OrderByDescending(x => x.RemainingMs()).ToList();
         }
 
-        public void UpdateSpriteAnimation()
-        {
-            var oldAnim = SpriteAnimation;
-
-            //Exit if textures haven't been loaded yet
-            if (AnimatedTextures.Count == 0)
-            {
-                return;
-            }
-
-            SpriteAnimation = AnimatedTextures[SpriteAnimations.Idle] != null && LastActionTime + TimeBeforeIdling < Globals.System.GetTimeMs() ? SpriteAnimations.Idle : SpriteAnimations.Normal;
-            if (IsMoving)
-            {
-                SpriteAnimation = SpriteAnimations.Normal;
-                LastActionTime = Globals.System.GetTimeMs();
-            }
-            else if (AttackTimer > Globals.System.GetTimeMs()) //Attacking
-            {
-                var timeIn = CalculateAttackTime() - (AttackTimer - Globals.System.GetTimeMs());
-                LastActionTime = Globals.System.GetTimeMs();
-
-                if (AnimatedTextures[SpriteAnimations.Attack] != null)
-                {
-                    SpriteAnimation = SpriteAnimations.Attack;
-                    SpriteFrame = (int)Math.Floor((timeIn / (CalculateAttackTime() / 4f)));
-                }
-
-                if (Options.WeaponIndex > -1 && Options.WeaponIndex < Equipment.Length)
-                {
-                    if (Equipment[Options.WeaponIndex] != Guid.Empty && this != Globals.Me ||
-                        MyEquipment[Options.WeaponIndex] < Options.MaxInvItems)
-                    {
-                        var itemId = Guid.Empty;
-                        if (this == Globals.Me)
-                        {
-                            var slot = MyEquipment[Options.WeaponIndex];
-                            if (slot > -1)
-                            {
-                                itemId = Inventory[slot].ItemId;
-                            }
-                        }
-                        else
-                        {
-                            itemId = Equipment[Options.WeaponIndex];
-                        }
-
-                        var item = ItemBase.Get(itemId);
-                        if (item != null)
-                        {
-                            if (AnimatedTextures[SpriteAnimations.Weapon] != null)
-                            {
-                                SpriteAnimation = SpriteAnimations.Weapon;
-                            }
-
-                            if (AnimatedTextures[SpriteAnimations.Shoot] != null && item.ProjectileId != Guid.Empty)
-                            {
-                                SpriteAnimation = SpriteAnimations.Shoot;
-                            }
-                        }
-                    }
-                }
-            }
-            else if (CastTime > Globals.System.GetTimeMs())
-            {
-                var spell = SpellBase.Get(SpellCast);
-                if (spell != null)
-                {
-                    var duration = spell.CastDuration;
-                    var timeIn = duration - (CastTime - Globals.System.GetTimeMs());
-                    SpriteFrame = (int)Math.Floor((timeIn / (duration / 4f)));
-
-                    if (AnimatedTextures[SpriteAnimations.Cast] != null)
-                    {
-                        SpriteAnimation = SpriteAnimations.Cast;
-                    }
-
-                    if (spell.SpellType == SpellTypes.CombatSpell &&
-                        spell.Combat.TargetType == SpellTargetTypes.Projectile && AnimatedTextures[SpriteAnimations.Shoot] != null)
-                    {
-                        SpriteAnimation = SpriteAnimations.Shoot;
-                    }
-                }
-                LastActionTime = Globals.System.GetTimeMs();
-            }
-
-            if (SpriteAnimation == SpriteAnimations.Normal)
-            {
-                ResetSpriteFrame();
-            }
-            else if (SpriteAnimation == SpriteAnimations.Idle)
-            {
-                if (SpriteFrameTimer + IdleFrameDuration < Globals.System.GetTimeMs())
-                {
-                    SpriteFrame++;
-                    if (SpriteFrame > 3)
-                    {
-                        SpriteFrame = 0;
-                    }
-                    SpriteFrameTimer = Globals.System.GetTimeMs();
-                }
-            }
-        }
-
-        public void ResetSpriteFrame()
-        {
-            SpriteFrame = 0;
-            SpriteFrameTimer = Globals.System.GetTimeMs();
-        }
-
-        public void LoadAnimationTextures(string tex)
-        {
-            var file = Path.GetFileNameWithoutExtension(tex);
-            var ext = Path.GetExtension(tex);
-
-            AnimatedTextures.Clear();
-            foreach (var anim in Enum.GetValues(typeof(SpriteAnimations)))
-            {
-                AnimatedTextures.Add((SpriteAnimations)anim, Globals.ContentManager.GetTexture(GameContentManager.TextureType.Entity, $@"{file}_{anim}.png"));
-            }
-        }
-
         ~Entity()
         {
             Dispose();
         }
-
-
-
 
     }
 

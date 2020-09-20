@@ -29,29 +29,8 @@ namespace Intersect.Server.Entities
         //Spell casting
         public long CastFreq;
 
-        /// <summary>
-        /// Damage Map - Keep track of who is doing the most damage to this npc and focus accordingly
-        /// </summary>
+        //Damage Map - Keep track of who is doing the most damage to this npc and focus accordingly
         public ConcurrentDictionary<Entity, long> DamageMap = new ConcurrentDictionary<Entity, long>();
-
-        /// <summary>
-        /// Returns the entity that ranks the highest on this NPC's damage map.
-        /// </summary>
-        public Entity DamageMapHighest { 
-            get {
-                long damage = 0;
-                Entity top = null;
-                foreach (var pair in DamageMap)
-                {
-                    if (pair.Value > damage)
-                    {
-                        top = pair.Key;
-                        damage = pair.Value;
-                    }
-                }
-                return top;
-            } 
-        }
 
         public bool Despawnable;
 
@@ -768,22 +747,6 @@ namespace Intersect.Server.Entities
                                                     dir = 2;
 
                                                     break;
-                                                case 4:
-                                                    dir = 5;
-
-                                                    break;
-                                                case 5:
-                                                    dir = 4;
-
-                                                    break;
-                                                case 6:
-                                                    dir = 7;
-
-                                                    break;
-                                                case 7:
-                                                    dir = 6;
-
-                                                    break;
                                             }
                                         }
 
@@ -855,22 +818,6 @@ namespace Intersect.Server.Entities
                                         break;
                                     case 3:
                                         dir = 2;
-
-                                        break;
-                                    case 4:
-                                        dir = 5;
-
-                                        break;
-                                    case 5:
-                                        dir = 4;
-
-                                        break;
-                                    case 6:
-                                        dir = 7;
-
-                                        break;
-                                    case 7:
-                                        dir = 6;
 
                                         break;
                                 }
@@ -947,7 +894,7 @@ namespace Intersect.Server.Entities
                 var i = Randomization.Next(0, 1);
                 if (i == 0)
                 {
-                    i = Randomization.Next(0, 8);
+                    i = Randomization.Next(0, 4);
                     if (CanMove(i) == -1)
                     {
                         //check if NPC is snared or stunned
@@ -988,7 +935,7 @@ namespace Intersect.Server.Entities
                 }
             }
         }
-        // End of the Npc Movement
+
         public override void NotifySwarm(Entity attacker)
         {
             var mapEntities = MapInstance.Get(MapId).GetEntities(true);

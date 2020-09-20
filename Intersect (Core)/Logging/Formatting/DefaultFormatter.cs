@@ -120,6 +120,7 @@ namespace Intersect.Logging.Formatting
             }
 
             var innerException = exception;
+            ;
             while ((innerException = innerException.InnerException) != null)
             {
                 builder.AppendLine(@"Caused By");

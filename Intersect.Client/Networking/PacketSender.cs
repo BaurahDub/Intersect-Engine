@@ -51,9 +51,9 @@ namespace Intersect.Client.Networking
             Network.SendPacket(new ChatMsgPacket(msg, channel));
         }
 
-        public static void SendAttack(Guid targetId, bool targetOnFocus)
+        public static void SendAttack(Guid targetId)
         {
-            Network.SendPacket(new AttackPacket(targetId, targetOnFocus));
+            Network.SendPacket(new AttackPacket(targetId));
         }
 
         public static void SendBlock(bool blocking)
@@ -106,9 +106,9 @@ namespace Intersect.Client.Networking
             Network.SendPacket(new CreateAccountPacket(username.Trim(), password.Trim(), email.Trim()));
         }
 
-        public static void SendCreateCharacter(string name, Guid classId, int sprite, int[] customSpriteLayers)
+        public static void SendCreateCharacter(string name, Guid classId, int sprite)
         {
-            Network.SendPacket(new CreateCharacterPacket(name, classId, sprite, customSpriteLayers));
+            Network.SendPacket(new CreateCharacterPacket(name, classId, sprite));
         }
 
         public static void SendPickupItem(int index)

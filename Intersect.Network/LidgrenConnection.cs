@@ -7,7 +7,7 @@ using Intersect.Network.Packets;
 
 using Lidgren.Network;
 
-namespace Intersect.Network.Lidgren
+namespace Intersect.Network
 {
 
     public sealed class LidgrenConnection : AbstractConnection
