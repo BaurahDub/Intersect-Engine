@@ -50,7 +50,11 @@ namespace Intersect
 
         [JsonProperty("Player")] public PlayerOptions PlayerOpts = new PlayerOptions();
 
+        [JsonProperty("Party")] public PartyOptions PartyOpts = new PartyOptions();
+
         [JsonProperty("Security")] public SecurityOptions SecurityOpts = new SecurityOptions();
+
+        [JsonProperty("Loot")] public LootOptions LootOpts = new LootOptions();
 
         public SmtpSettings SmtpSettings = new SmtpSettings();
 
@@ -81,8 +85,6 @@ namespace Intersect
 
         public static int TradeRange => Instance.PlayerOpts.TradeRange;
 
-        public static int PartyRange => Instance.PlayerOpts.PartyRange;
-
         public static int WeaponIndex => Instance.EquipmentOpts.WeaponSlot;
 
         public static int ShieldIndex => Instance.EquipmentOpts.ShieldSlot;
@@ -99,6 +101,8 @@ namespace Intersect
 
         public static int CombatTime => Instance.CombatOpts.CombatTime;
 
+        public static int ItemDropRange => Instance.CombatOpts.ItemDropRange;
+
         public static int MinAttackRate => Instance.CombatOpts.MinAttackRate;
 
         public static int MaxAttackRate => Instance.CombatOpts.MaxAttackRate;
@@ -108,10 +112,6 @@ namespace Intersect
         public static int MaxDashSpeed => Instance.CombatOpts.MaxDashSpeed;
 
         public static int GameBorderStyle => Instance.MapOpts.GameBorderStyle;
-
-        public static int ItemRepawnTime => Instance.MapOpts.ItemSpawnTime;
-
-        public static int ItemDespawnTime => Instance.MapOpts.ItemDespawnTime;
 
         public static bool ZDimensionVisible => Instance.MapOpts.ZDimensionVisible;
 
@@ -128,6 +128,10 @@ namespace Intersect
         public static int MaxChatLength => Instance.ChatOpts.MaxChatLength;
 
         public static int MinChatInterval => Instance.ChatOpts.MinIntervalBetweenChats;
+
+        public static LootOptions Loot => Instance.LootOpts;
+
+        public static PartyOptions Party => Instance.PartyOpts;
 
         public static bool UPnP => Instance._upnp;
 

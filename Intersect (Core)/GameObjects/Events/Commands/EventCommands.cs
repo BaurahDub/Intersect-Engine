@@ -425,6 +425,11 @@ namespace Intersect.GameObjects.Events.Commands
 
         public bool Add { get; set; } //If !Add then Remove
 
+        /// <summary>
+        /// Defines how the server is supposed to handle changing the items of this request.
+        /// </summary>
+        public ItemHandling ItemHandling { get; set; } = ItemHandling.Normal;
+
         public int Quantity { get; set; }
 
         public Guid[] BranchIds { get; set; } =
@@ -515,6 +520,15 @@ namespace Intersect.GameObjects.Events.Commands
         public override EventCommandType Type { get; } = EventCommandType.ChangeFace;
 
         public string Face { get; set; } = "";
+
+    }
+
+    public class ChangeHairCommand : EventCommand
+    {
+
+        public override EventCommandType Type { get; } = EventCommandType.ChangeHair;
+
+        public string Hair { get; set; } = "";
 
     }
 

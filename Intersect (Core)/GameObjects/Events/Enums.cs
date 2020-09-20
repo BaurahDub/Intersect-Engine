@@ -12,6 +12,14 @@
 
         MoveRight,
 
+        MoveUpLeft,
+
+        MoveUpRight,
+
+       MoveDownLeft,
+
+        MoveDownRight,
+
         MoveRandomly,
 
         MoveTowardsPlayer,
@@ -214,6 +222,9 @@
 
         //Player Label
         PlayerLabel,
+
+        //Change Hair
+        ChangeHair,
 
     }
 

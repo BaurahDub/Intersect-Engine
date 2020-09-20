@@ -18,11 +18,11 @@
 
         public int MaxStat = 255;
 
-        public int PartyRange = 80;
-
         public int RequestTimeout = 300000;
 
         public int TradeRange = 6;
+
+        public int DisplayLevelStyle = 2;
 
     }
 
